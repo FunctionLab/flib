@@ -162,7 +162,7 @@ class go:
                     to_print = [annotation.xdb if annotation.xdb else '',
                                 annotation.gid,
                                 '', '', #Gene Symbol, NOT/''
-                                gid,
+                                tid,
                                 annotation.ref,
                                 annotation.evidence,
                                 annotation.date,
