@@ -101,6 +101,7 @@ class go:
 
     def propagate_recurse(self, gterm):
         if len(gterm.parent_of) == 0:
+            logger.debug("Base case with term %s", gterm.name)
             return
 
         for child_term in gterm.parent_of:
