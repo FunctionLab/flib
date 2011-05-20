@@ -165,7 +165,7 @@ class go:
                                 annotation.ref,
                                 annotation.evidence,
                                 annotation.date,
-                                annotation.direct] #Direct is added in to indicate prop status
+                                str(annotation.direct)] #Direct is added in to indicate prop status
                     print >> f, '\t'.join(to_print)
                 else:
                     print >> f, tid + '\t' + annotation.gid
