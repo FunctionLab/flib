@@ -1,4 +1,8 @@
 import sys
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 import os
 from idmap import idmap
 
@@ -48,7 +52,7 @@ class go:
                 if self.go_terms.has_key(fields[1]):
                     gterm = self.go_terms[fields[1]]
                 else:
-                    gterm = GO_term(fields[1])
+                    gterm = GOTerm(fields[1])
                     self.go_terms[ gterm.get_id() ] = gterm
                 #print self.go_terms[fields[1]]
             elif inside and fields[0] == 'name:':
@@ -74,7 +78,7 @@ class go:
                 fields.pop(0)
                 pgo_id = fields.pop(0)
                 if not self.go_terms.has_key(pgo_id):
-                    self.go_terms[pgo_id] = GO_term(pgo_id)
+                    self.go_terms[pgo_id] = GOTerm(pgo_id)
 
                 gterm.is_a.append(self.go_terms[pgo_id])
                 self.go_terms[pgo_id].parent_of.append(gterm)
@@ -85,7 +89,7 @@ class go:
                 gterm.head = False
                 pgo_id = fields[2]
                 if not self.go_terms.has_key(pgo_id):
-                    self.go_terms[pgo_id] = GO_term(pgo_id)
+                    self.go_terms[pgo_id] = GOTerm(pgo_id)
                 gterm.relationship.append(self.go_terms[pgo_id])
                 self.go_terms[pgo_id].parent_of.append(gterm)
             elif inside and fields[0] == 'is_obsolete:':
@@ -94,16 +98,15 @@ class go:
                 del self.name2id[gterm.name]
                 del self.id2gterm[gterm.go_id]
 
-
-        #print "WTF!!", self.go_terms.has_key("GO:0010551")
     """
     propagate all gene annotations
     """
     def propagate(self):
-        print >> sys.stderr, "Propagate gene annotations"
+        logger.info("Propagate gene annotations")
         for head_gterm in self.heads:
-            print >> sys.stderr, head_gterm.name
+            logger.info("Propagating %s", head_gterm.name)
             self.propagate_recurse(head_gterm)
+
     def propagate_recurse(self, gterm):
         if len(gterm.parent_of) == 0:
             return
@@ -112,20 +115,10 @@ class go:
             if child_term.namespace != gterm.namespace:
                 continue
             self.propagate_recurse(child_term)
-
-        # need to optimize
-        for child_term in gterm.parent_of:
-            if child_term.namespace != gterm.namespace:
-                continue
-            gterm.annotated_genes = gterm.annotated_genes | child_term.annotated_genes
-
-            if len(child_term.refids.keys()) != 0:
-                for refid in child_term.refids.keys():
-                    if gterm.refids.has_key(refid):
-                        gterm.refids[refid] = gterm.refids[refid] | child_term.refids[refid]
-                    else:
-                        gterm.refids[refid] = child_term.refids[refid].copy()
-
+            new_annotations = set()
+            for annotation in child_term.annotations:
+                new_annotations.add(annotation.prop_copy())
+            gterm.annotations = gterm.annotations | new_annotations
 
     def print_terms(self, out_dir, terms=None, p_namespace=None):
         if terms == None:
@@ -137,7 +130,7 @@ class go:
                 if self.alt_id2std_id.has_key(gid):
                     gid = self.alt_id2std_id[gid]
                 else:
-                    print >> sys.stderr, "ERROR: term name don't exist:", gid
+                    logging.error('Term name does not exist: %s', gid)
                     continue
 
             gterm = self.id2gterm[gid]
@@ -148,8 +141,8 @@ class go:
 
             f = open(out_dir + '/' + gterm, 'w')
 
-            for gene in self.go_terms[gid].annotated_genes:
-                print >> f, gene
+            for annotation in self.go_terms[gid].annotations:
+                print >> f, annotation.gid
             f.close()
 
     def print_to_single_file(self, out_file, terms=None, p_namespace=None, gene_asso_format=False):
@@ -163,23 +156,30 @@ class go:
                 if self.alt_id2std_id.has_key(gid):
                     gid = self.alt_id2std_id[gid]
                 else:
-                    print >> sys.stderr, "ERROR: term name don't exist:", gid
+                    logging.error('Term name does not exist: %s', gid)
                     continue
 
             if p_namespace != None and self.go_terms[gid].namespace != p_namespace:
                 continue
 
-            for gene in self.go_terms[gid].annotated_genes:
+            for annotation in self.go_terms[gid].annotations:
                 if gene_asso_format:
-                    to_print = ['dummy', gene, 'dummy', 'dummy', gid]
+                    to_print = [annotation.xdb if annotation.xdb else '',
+                                annotation.gid,
+                                '', '', #Gene Symbol, NOT/''
+                                gid,
+                                annotation.ref,
+                                annotation.evidence,
+                                annotation.date,
+                                annotation.direct] #Direct is added in to indicate prop status
                     print >> f, '\t'.join(to_print)
                 else:
-                    print >> f, gid + '\t' + gene
+                    print >> f, gid + '\t' + annotation.gid
         f.close()
 
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
-        print >> sys.stderr, "printing ref IDs"
+        logging.info('Printing ref IDs')
 
         if terms == None:
             terms = self.go_terms.keys()
@@ -190,7 +190,7 @@ class go:
                 if self.alt_id2std_id.has_key(gid):
                     gid = self.alt_id2std_id[gid]
                 else:
-                    print >> sys.stderr, "ERROR: term name don't exist:", gid
+                    logging.error('Term name does not exist: %s', gid)
                     continue
 
             if p_namespace != None and self.go_terms[gid].namespace != p_namespace:
@@ -200,7 +200,7 @@ class go:
                 for gene in self.go_terms[gid].refids[refid]:
                     print gid + '\t' + refid + '\t' + gene
 
-    # be aware this is added only to be used with python sctript  cross_annotate_single_file_only_crossed.py
+    # be aware this is added only to be used with python script  cross_annotate_single_file_only_crossed.py
     def print_to_single_file_cross_annotated(self, out_file, terms=None, p_namespace=None):
         f = open(out_file, 'w')
         if terms == None:
@@ -212,7 +212,7 @@ class go:
                 if self.alt_id2std_id.has_key(gid):
                     gid = self.alt_id2std_id[gid]
                 else:
-                    print >> sys.stderr, "ERROR: term name don't exist:", gid
+                    logging.error('Term name does not exist: %s', gid)
                     continue
 
             if p_namespace != None and self.go_terms[gid].namespace != p_namespace:
@@ -225,35 +225,38 @@ class go:
     def map_genes(self, id_name):
         for gid in self.go_terms.keys():
             self.go_terms[gid].map_genes(id_name)
-            
 
-    def populate_annotations(self, annotation_file, gene_col=1, ref_col=-1, term_col=4):
+
+    def populate_annotations(self, annotation_file, xdb_col=0, gene_col=1, term_col=4, ref_col=5, ev_col=6, date_col=13):
+        details_col = 3
         f = open(annotation_file, 'r')
-        print >> sys.stderr, "Populate gene annotations:", annotation_file
+        logging.info('Populate gene annotations: %s', annotation_file)
         for line in f:
             if line[0] == '!':
                 continue
             fields = line.rstrip('\n').split('\t')
-            go_term = fields[term_col]
+            xdb = fields[xdb_col]
             gene = fields[gene_col]
+            go_id = fields[term_col]
+            ref = fields[ref_col]
+            ev = fields[ev_col]
+            date = fields[date_col]
 
-            if not self.go_terms.has_key(go_term):
-                if self.alt_id2std_id.has_key(go_term):
-                    go_term = self.alt_id2std_id[go_term]
-                else:
-                    print >> sys.stderr, "ERROR: term name don't exist:", go_term
+            details = fields[details_col]
+            if details == 'NOT':
+                continue
+
+            try:
+                goterm = self.go_terms[go_id]
+            except KeyError:
+                try:
+                    go_term = self.go_terms[self.alt_id2std_id[go_id]]
+                except KeyError:
+                    logging.error('Term name does not exist: %s', go_id)
                     continue
 
-            self.go_terms[go_term].annotated_genes.add(gene)
-
-            # if given a reference idx, store the reference ID (e.g. PMID)
-            if ref_col != -1:
-                refid = fields[ref_col]
-
-                if self.go_terms[go_term].refids.has_key(refid):
-                    self.go_terms[go_term].refids[refid].add(gene)
-                else:
-                    self.go_terms[go_term].refids[refid] = set([gene])
+            annotation = Annotation(xdb=xdb, gid=gene, ref=ref, evidence=ev, date=date, direct=True)
+            go_term.annotations.add(annotation)
 
         f.close()
         self.populated = True
@@ -261,12 +264,12 @@ class go:
 
     def populate_additional_taxon_specificity(self, ncbi_tax_obj, taxon_specificity_add_file, tag_tax_id):
         f = open(taxon_specificity_add_file, 'r')
-        print >> sys.stderr, "Populate GO specificity:", taxon_specificity_add_file
+        logging.info("Populate GO specificity: %s", taxon_specificity_add_file)
 
         if ncbi_tax_obj.id2species.has_key(tag_tax_id):
             self.go_organism_tax_id = tag_tax_id
         else:
-            print >> sys.stderr, 'ERROR: NCBI tax ID do not exist', tag_tax_id
+            logging.error("NCBI tax ID %s does not exist", tag_tax_id)
             sys.exit(1)
 
         for line in f:
@@ -288,12 +291,12 @@ class go:
 
     def populate_taxon_specificity(self, ncbi_tax_obj, taxon_specificity_obo_file, tag_tax_id):
         f = open(taxon_specificity_obo_file, 'r')
-        print >> sys.stderr, "Populate GO specificity:", taxon_specificity_obo_file
+        logging.info("Populate GO specificity: %s", taxon_specificity_obo_file)
 
         if ncbi_tax_obj.id2species.has_key(tag_tax_id):
             self.go_organism_tax_id = tag_tax_id
         else:
-            print >> sys.stderr, 'ERROR: NCBI tax ID do not exist', tag_tax_id
+            logging.error("NCBI tax ID %s does not exist", tag_tax_id)
             sys.exit(1)
 
         inside = False
@@ -329,7 +332,7 @@ class go:
                         elif ncbi_tax_obj.in_part.has_key(fl):
                             [ final_tax_ids.append(in_part_id) for in_part_id in ncbi_tax_obj.in_part[fl] ]
                         else:
-                            print >> sys.stderr, 'ERROR missing no NCBI tax id:', fl
+                            logging.error("Missing NCBI tax ID: %s", fl)
                 # now go label your go tree
                 self.propagate_taxon_specificity(final_tax_ids, gid, relationship, ncbi_tax_obj)
 
@@ -348,7 +351,7 @@ class go:
         elif self.alt_id2std_id.has_key(go_id):
             current_gterm = self.go_terms[self.alt_id2std_id[go_id]]
         else:
-            print >> sys.stderr, "ERROR: term name don't exist:", go_id
+            logging.error('Term name doesn\'t exist: %s', go_id)
             return
 
 
@@ -363,7 +366,7 @@ class go:
                     self.propagate_taxon_set_false(go_id)
                     return
         else:
-            print >> sys.stderr, "ERROR invalid relationship term", relationship
+            logging.error('Invalid relationship term: %s', relationship)
             return
 
     def propagate_taxon_set_false(self, gid):
@@ -371,7 +374,7 @@ class go:
             if  self.alt_id2std_id.has_key(gid):
                 gid = self.alt_id2std_id[gid]
             else:
-                print >> sys.stderr, "ERROR: term name don't exist:", gid
+                logging.error('Term name does not exist: %s', gid)
                 return
 
         self.go_terms[gid].valid_go_term = False
@@ -386,7 +389,7 @@ class go:
             return self.id2gterm[ self.alt_id2std_id[id] ]
         else:
             return ''
-        
+
     # check if slim terms forms a true fringe in the obo structure
     def check_fringe(self, slim_file, namespace=None):
         leaf_goterms = []
@@ -398,7 +401,7 @@ class go:
                 if namespace != None and self.go_terms[gid].namespace != namespace:
                     continue
 
-                self.go_terms[gid].annotated_genes.add(gid)
+                self.go_terms[gid].annotations.add(Annotation(gid=gid))
                 leaf_goterms.append(gid)
 
         # now propagate the GO ids from the leaf terms
@@ -420,10 +423,10 @@ class go:
                 if self.alt_id2std_id.has_key(gid):
                     gid = self.alt_id2std_id[gid]
                 else:
-                    print >> sys.stderr, "ERROR: slim term name don't exist (probably obsolete term):", gid
+                    logging.error('Slim term name does not exist (potentially obsolete term): %s', gid)
                     continue
 
-            slim_goterms.extend( self.go_terms[gid].annotated_genes )
+            slim_goterms.extend([annotation.gid for annotation in self.go_terms[gid].annotations])
 
         # now compare two sets
         leaf_goterms.sort()
@@ -434,29 +437,52 @@ class go:
         else:
             for lgoterm in leaf_goterms:
                 if lgoterm not in slim_goterms:
-                    print >> sys.stderr, "Missing leaf terms", self.id2gterm[lgoterm], lgoterm
+                    logging.warning("Missing leaf terms: %s %s", self.id2gterm[lgoterm], lgoterm)
             return False
 
+class Annotation(object):
+    def __init__(self, xdb=None, gid=None, ref=None, evidence=None, date=None, direct=False):
+        super(Annotation, self).__setattr__('xdb', xdb)
+        super(Annotation, self).__setattr__('gid', gid)
+        super(Annotation, self).__setattr__('ref', ref)
+        super(Annotation, self).__setattr__('evidence', evidence)
+        super(Annotation, self).__setattr__('date', date)
+        super(Annotation, self).__setattr__('direct', direct)
 
-class GO_term:
+    def prop_copy(self):
+        return Annotation(xdb=self.xdb, gid=self.gid, ref=self.ref,
+                          evidence=self.evidence, date=self.date, direct=False)
+
+    def __hash__(self):
+        return hash((self.xdb, self.gid, self.ref, self.evidence,
+                     self.date, self.direct))
+
+    def __eq__(self, other):
+        return (self.xdb, self.gid, self.ref, self.evidence, self.date,
+                self.direct).__eq__((other.xdb, other.gid, other.ref,
+                                     other.evidence, other.date, other.direct))
+
+    def __setattr__(self, *args):
+        raise TypeError("Attempt to modify immutable object.")
+    __delattr__ = __setattr__
+
+class GOTerm:
     go_id = ''
     is_a = None
     relationship = None
     parent_of = None
-    annotated_genes = None
+    annotations = None
     alt_id = None
     namespace = ''
     included_in_all = None
     valid_go_term = None
     cross_annotated_genes = None
     head = None
-    refids = None
 
     def __init__(self, go_id):
         self.head = True
         self.go_id = go_id
-        self.annotated_genes = set([])
-        self.refids = {}
+        self.annotations = set([])
         self.cross_annotated_genes = set([])
         self.is_a = []
         self.relationship = []
@@ -467,23 +493,17 @@ class GO_term:
     def get_id(self):
         return self.go_id
     def map_genes(self, id_name):
-        mapped_genes_set = set([])
-        for gene in self.annotated_genes:
-            mapped_genes = id_name.get(gene)
+        mapped_annotations_set = set([])
+        for annotation in self.annotations:
+            mapped_genes = id_name.get(annotation.gid)
             if mapped_genes == None:
-                print >> sys.stderr, "ERROR: No matching gene id:", gene
+                logging.warning('No matching gene id: %s', annotation.gid)
                 continue
             for mgene in mapped_genes:
-                mapped_genes_set.add(mgene)
-        self.annotated_genes = mapped_genes_set
+                mapped_annotations_set.add(Annotation(xdb=None, gid=mgene,
+                                                direct=annotation.direct,
+                                                ref=annotation.ref,
+                                                evidence=annotation.evidence,
+                                                date=annotation.date))
+        self.annotations = mapped_annotations_set
 
-        if len(self.refids.keys()) != 0:
-            for refid in self.refids.keys():
-                mapped_genes_set = set([])
-                for gene in self.refids[refid]:
-                    mapped_genes = id_name.get(gene)
-                    if mapped_genes == None:
-                        continue
-                    for mgene in mapped_genes:
-                        mapped_genes_set.add(mgene)
-                self.refids[refid] = mapped_genes_set

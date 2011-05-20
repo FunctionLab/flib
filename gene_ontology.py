@@ -10,19 +10,19 @@ from go import go
 ref_col = 5
 
 usage = "usage: %prog [options]"
-parser = OptionParser(usage, version = "%prog dev-unreleased")
+parser = OptionParser(usage, version="%prog dev-unreleased")
 parser.add_option("-o", "--obo-file", dest="obo", help="obo file", metavar="FILE")
 parser.add_option("-a", "--association-file", dest="ass", help="gene association file", metavar="FILE")
-parser.add_option("-b", dest="term_col", type="int", help = "What column of the annotations file contains the term identifiers?", default=4)
-parser.add_option("-g", dest="gcol", type="int", help = "What column of the annotations file contains the desired identifiers?", default=1)
-parser.add_option("-d", "--output-prefix", dest = "opref", help = "prefix for output files", metavar = "string")
-parser.add_option("-f", "--output-filename", dest = "ofile", help = "If given outputs all go term/gene annotation pairs to this file, file is created in the output prefix directory.", metavar = "string")
-parser.add_option("-i", "--id-file", dest = "idfile", help = "file to map excisting gene ids to the desired identifiers in the format <gene id>\\t<desired id>\\n", metavar = "FILE")
-parser.add_option("-p", action="store_true", dest="progagate", help = "Should we progagate gene annotations?")
+parser.add_option("-b", dest="term_col", type="int", help="What column of the annotations file contains the term identifiers?", default=4)
+parser.add_option("-g", dest="gcol", type="int", help="What column of the annotations file contains the desired identifiers?", default=1)
+parser.add_option("-d", "--output-prefix", dest="opref", help="prefix for output files", metavar="string")
+parser.add_option("-f", "--output-filename", dest="ofile", help="If given outputs all go term/gene annotation pairs to this file, file is created in the output prefix directory.", metavar="string")
+parser.add_option("-i", "--id-file", dest="idfile", help="file to map excisting gene ids to the desired identifiers in the format <gene id>\\t<desired id>\\n", metavar="FILE")
+parser.add_option("-p", action="store_true", dest="progagate", help="Should we progagate gene annotations?")
 parser.add_option("-t", "--slim-file", dest="slim", help="GO slim file contains GO terms to output, if not given outputs all GO terms", metavar="FILE")
 parser.add_option("-n", "--namespace", dest="nspace", help="limit the GO term output to the input namespace: (biological_process, cellular_component, molecular_function)", metavar="STRING")
-parser.add_option("-r", dest="refids", action="store_true", help = "If given keeps track of ref IDs (e.g. PMIDs) for each go term and prints to standard out")
-parser.add_option("-c", dest="check_fringe", action="store_true", help = "Is the given slim file a true fringe in the given obo file?")
+parser.add_option("-r", dest="refids", action="store_true", help="If given keeps track of ref IDs (e.g. PMIDs) for each go term and prints to standard out")
+parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
 
 (options, args) = parser.parse_args()
 
