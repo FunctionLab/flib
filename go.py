@@ -247,7 +247,7 @@ class go:
                 continue
 
             try:
-                goterm = self.go_terms[go_id]
+                go_term = self.go_terms[go_id]
             except KeyError:
                 try:
                     go_term = self.go_terms[self.alt_id2std_id[go_id]]
