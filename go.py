@@ -124,6 +124,7 @@ class go:
         return term
 
     def print_terms(self, out_dir, terms=None, p_namespace=None):
+        logger.info('Print terms')
         if terms == None:
             terms = self.go_terms.keys()
 
@@ -214,9 +215,9 @@ class go:
 
 
     def populate_annotations(self, annotation_file, xdb_col=0, gene_col=1, term_col=4, ref_col=5, ev_col=6, date_col=13):
+        logger.info('Populate gene annotations: %s', annotation_file)
         details_col = 3
         f = open(annotation_file, 'r')
-        logger.info('Populate gene annotations: %s', annotation_file)
         for line in f:
             if line[0] == '!':
                 continue
