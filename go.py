@@ -457,6 +457,12 @@ class GOTerm:
                                                 date=annotation.date))
         self.annotations = mapped_annotations_set
 
+    def get_annotated_genes(self):
+        genes = []
+        for annotation in self.annotations:
+            genes.append(annotation.gid)
+        return genes
+
 if __name__ == '__main__':
     from optparse import OptionParser
 
