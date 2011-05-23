@@ -104,8 +104,6 @@ class go:
             return
 
         for child_term in gterm.parent_of:
-            if child_term.namespace != gterm.namespace:
-                continue
             self.propagate_recurse(child_term)
             new_annotations = set()
             for annotation in child_term.annotations:
