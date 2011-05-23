@@ -153,7 +153,7 @@ class go:
 
     def print_terms(self, out_dir, terms=None, p_namespace=None):
         logger.info('print_terms')
-        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
         #print terms
         for term in tlist:
             f = open(out_dir + '/' + term.name, 'w')
@@ -163,7 +163,7 @@ class go:
 
     def print_to_single_file(self, out_file, terms=None, p_namespace=None, gene_asso_format=False):
         logger.info('print_to_single_file')
-        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
         tlist.sort()
         f = open(out_file, 'w')
         for term in tlist:
@@ -185,7 +185,7 @@ class go:
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
         logger.info('print_refids')
-        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
         tlist.sort()
         for term in tlist:
             for annotation in term.annotations:
@@ -194,7 +194,7 @@ class go:
     # be aware this is added only to be used with python script  cross_annotate_single_file_only_crossed.py
     def print_to_single_file_cross_annotated(self, out_file, terms=None, p_namespace=None):
         logger.info('print_to_single_file_cross_annotated')
-        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
         tlist.sort()
         f = open(out_file, 'w')
         for term in tlist:
