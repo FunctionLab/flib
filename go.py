@@ -2,7 +2,7 @@ import sys
 import logging
 logging.basicConfig()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 
 from idmap import idmap
 
@@ -113,6 +113,7 @@ class go:
             gterm.annotations = gterm.annotations | new_annotations
 
     def get_term(self, tid):
+        logger.debug('get_term: %s', tid)
         term = None
         try:
             term = self.go_terms[tid]
@@ -122,20 +123,6 @@ class go:
             except KeyError:
                 logger.error('Term name does not exist: %s', tid)
         return term
-
-    def get_termdict_list(self, terms=None, p_namespace=None):
-        logger.info('get_termdict_list')
-        if terms is None:
-            terms = self.go_terms.keys()
-        reterms = []
-        for tid in terms:
-            obo_term = self.get_term(tid)
-            if obo_term is None:
-                continue
-            if p_namespace is not None and obo_term.namespace != p_namespace:
-                continue
-            reterms.append({'oboid':obo_term.go_id, 'name':obo_term.name})
-        return reterms
 
     def get_termobject_list(self, terms=None, p_namespace=None):
         logger.info('get_termobject_list')
@@ -149,6 +136,13 @@ class go:
             if p_namespace is not None and obo_term.namespace != p_namespace:
                 continue
             reterms.append(obo_term)
+        return reterms
+
+    def get_termdict_list(self, terms=None, p_namespace=None):
+        logger.info('get_termdict_list')
+        tlist = self.get_termobject_list(terms=None, p_namespace=None)
+        for obo_term in tlist:
+            reterms.append({'oboid':obo_term.go_id, 'name':obo_term.name})
         return reterms
 
     def print_terms(self, out_dir, terms=None, p_namespace=None):
