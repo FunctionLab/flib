@@ -123,96 +123,88 @@ class go:
                 logger.error('Term name does not exist: %s', tid)
         return term
 
-    def print_terms(self, out_dir, terms=None, p_namespace=None):
-        logger.info('Print terms')
-        if terms == None:
+    def get_termdict_list(self, terms=None, p_namespace=None):
+        logger.info('get_termdict_list')
+        if terms is None:
             terms = self.go_terms.keys()
-
-        #print terms
+        reterms = []
         for tid in terms:
-            go_term = self.get_term(tid)
-            if go_term is None:
+            obo_term = self.get_term(tid)
+            if obo_term is None:
                 continue
-
-            if p_namespace != None and go_term.namespace != p_namespace:
+            if p_namespace is not None and obo_term.namespace != p_namespace:
                 continue
+            reterms.append({'oboid':obo_term.go_id, 'name':obo_term.name})
+        return reterms
 
-            f = open(out_dir + '/' + go_term.name, 'w')
-            for annotation in go_term.annotations:
+    def get_termobject_list(self, terms=None, p_namespace=None):
+        logger.info('get_termobject_list')
+        if terms is None:
+            terms = self.go_terms.keys()
+        reterms = []
+        for tid in terms:
+            obo_term = self.get_term(tid)
+            if obo_term is None:
+                continue
+            if p_namespace is not None and obo_term.namespace != p_namespace:
+                continue
+            reterms.append(obo_term)
+        return reterms
+
+    def print_terms(self, out_dir, terms=None, p_namespace=None):
+        logger.info('print_terms')
+        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        #print terms
+        for term in tlist:
+            f = open(out_dir + '/' + term.name, 'w')
+            for annotation in term.annotations:
                 print >> f, annotation.gid
             f.close()
 
     def print_to_single_file(self, out_file, terms=None, p_namespace=None, gene_asso_format=False):
-        logger.info('Printing to single file')
+        logger.info('print_to_single_file')
+        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
         f = open(out_file, 'w')
-        if terms == None:
-            terms = self.go_terms.keys()
-
-        terms.sort()
-        for tid in terms:
-            go_term = self.get_term(tid)
-            if go_term is None:
-                continue
-            if p_namespace != None and go_term.namespace != p_namespace:
-                continue
-
-            for annotation in go_term.annotations:
+        for term in tlist:
+            for annotation in term.annotations:
                 if gene_asso_format:
                     to_print = [annotation.xdb if annotation.xdb else '',
                                 annotation.gid,
                                 '', '', #Gene Symbol, NOT/''
-                                tid,
+                                term.go_id,
                                 annotation.ref,
                                 annotation.evidence,
                                 annotation.date,
                                 str(annotation.direct)] #Direct is added in to indicate prop status
                     print >> f, '\t'.join(to_print)
                 else:
-                    print >> f, tid + '\t' + annotation.gid
+                    print >> f, term.go_id + '\t' + annotation.gid
         f.close()
 
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
-        logger.info('Printing ref IDs')
-
-        if terms == None:
-            terms = self.go_terms.keys()
-
-        terms.sort()
-        for tid in terms:
-            go_term = self.get_term(gid)
-            if go_term is None:
-                continue
-            if p_namespace != None and go_term.namespace != p_namespace:
-                continue
-
-            for annotation in go_term.annotations:
-                print tid + '\t' + annotation.ref + '\t' + annotation.gid
+        logger.info('print_refids')
+        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
+        for term in tlist:
+            for annotation in term.annotations:
+                print term.go_id + '\t' + annotation.ref + '\t' + annotation.gid
 
     # be aware this is added only to be used with python script  cross_annotate_single_file_only_crossed.py
     def print_to_single_file_cross_annotated(self, out_file, terms=None, p_namespace=None):
-        logger.info('Printing to single file, cross annotated')
+        logger.info('print_to_single_file_cross_annotated')
+        tlist = get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
         f = open(out_file, 'w')
-        if terms == None:
-            terms = self.go_terms.keys()
-
-        terms.sort()
-        for tid in terms:
-            go_term = self.get_term(tid)
-            if go_term is None:
-                continue
-
-            if p_namespace != None and go_term.namespace != p_namespace:
-                continue
-
-            for gene in go_term.cross_annotated_genes:
-                print >> f, gene + '\t' + tid
+        for term in tlist:
+            for gene in term.cross_annotated_genes:
+                print >> f, gene + '\t' + term.go_id
         f.close()
 
     def map_genes(self, id_name):
         for go_term in self.go_terms.itervalues():
             go_term.map_genes(id_name)
-
 
     def populate_annotations(self, annotation_file, xdb_col=0, gene_col=1, term_col=4, ref_col=5, ev_col=6, date_col=13):
         logger.info('Populate gene annotations: %s', annotation_file)
@@ -329,7 +321,6 @@ class go:
         current_gterm = self.get_term(term_id)
         if current_gterm is None:
             return
-
 
         if relationship == 'only_in_taxon':
             for tid in tax_ids:
@@ -452,6 +443,10 @@ class GOTerm:
         self.included_in_all = True
         self.valid_go_term = True
         self.name = None
+
+    def __cmp__(self, other):
+        return cmp(self.go_id, other.go_id)
+
     def get_id(self):
         return self.go_id
     def map_genes(self, id_name):
