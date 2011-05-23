@@ -140,7 +140,8 @@ class go:
 
     def get_termdict_list(self, terms=None, p_namespace=None):
         logger.info('get_termdict_list')
-        tlist = self.get_termobject_list(terms=None, p_namespace=None)
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        reterms = []
         for obo_term in tlist:
             reterms.append({'oboid':obo_term.go_id, 'name':obo_term.name})
         return reterms
