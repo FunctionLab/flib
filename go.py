@@ -464,7 +464,7 @@ class GOTerm:
         return genes
 
     def add_annotation(self, gid):
-        self.annotations.append(Annotation(gid=gid))
+        self.annotations.add(Annotation(gid=gid))
 
 if __name__ == '__main__':
     from optparse import OptionParser
