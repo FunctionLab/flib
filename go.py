@@ -163,14 +163,14 @@ class go:
             for annotation in term.annotations:
                 if gene_asso_format:
                     to_print = [annotation.xdb if annotation.xdb else '',
-                                annotation.gid,
+                                annotation.gid if annotation.xdb else '',
                                 '', '', #Gene Symbol, NOT/''
-                                term.go_id,
-                                annotation.ref,
-                                annotation.evidence,
-                                annotation.date,
+                                term.go_id if term.go_id else '',
+                                annotation.ref if annotation.ref else '',
+                                annotation.evidence if annotation.evidence else '',
+                                annotation.date if annotation.date else '',
                                 str(annotation.direct)] #Direct is added in to indicate prop status
-                    print >> f, '\t'.join(to_print)
+                    print >> f, '\t'.join([str(x) for x in to_print])
                 else:
                     print >> f, term.go_id + '\t' + annotation.gid
         f.close()
