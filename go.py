@@ -2,9 +2,8 @@ import sys
 import logging
 logging.basicConfig()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 
-import os
 from idmap import idmap
 
 class go:
@@ -105,8 +104,6 @@ class go:
             return
 
         for child_term in gterm.parent_of:
-            if child_term.namespace != gterm.namespace:
-                continue
             self.propagate_recurse(child_term)
             new_annotations = set()
             for annotation in child_term.annotations:
@@ -114,6 +111,7 @@ class go:
             gterm.annotations = gterm.annotations | new_annotations
 
     def get_term(self, tid):
+        logger.debug('get_term: %s', tid)
         term = None
         try:
             term = self.go_terms[tid]
@@ -124,96 +122,82 @@ class go:
                 logger.error('Term name does not exist: %s', tid)
         return term
 
-    def print_terms(self, out_dir, terms=None, p_namespace=None):
-        logger.info('Print terms')
-        if terms == None:
+    def get_termobject_list(self, terms=None, p_namespace=None):
+        logger.info('get_termobject_list')
+        if terms is None:
             terms = self.go_terms.keys()
-
-        #print terms
+        reterms = []
         for tid in terms:
-            go_term = self.get_term(tid)
-            if go_term is None:
+            obo_term = self.get_term(tid)
+            if obo_term is None:
                 continue
-
-            if p_namespace != None and go_term.namespace != p_namespace:
+            if p_namespace is not None and obo_term.namespace != p_namespace:
                 continue
+            reterms.append(obo_term)
+        return reterms
 
-            f = open(out_dir + '/' + go_term.name, 'w')
-            for annotation in go_term.annotations:
+    def get_termdict_list(self, terms=None, p_namespace=None):
+        logger.info('get_termdict_list')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        reterms = []
+        for obo_term in tlist:
+            reterms.append({'oboid':obo_term.go_id, 'name':obo_term.name})
+        return reterms
+
+    def print_terms(self, out_dir, terms=None, p_namespace=None):
+        logger.info('print_terms')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        #print terms
+        for term in tlist:
+            f = open(out_dir + '/' + term.name, 'w')
+            for annotation in term.annotations:
                 print >> f, annotation.gid
             f.close()
 
     def print_to_single_file(self, out_file, terms=None, p_namespace=None, gene_asso_format=False):
-        logger.info('Printing to single file')
+        logger.info('print_to_single_file')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
         f = open(out_file, 'w')
-        if terms == None:
-            terms = self.go_terms.keys()
-
-        terms.sort()
-        for tid in terms:
-            go_term = self.get_term(tid)
-            if go_term is None:
-                continue
-            if p_namespace != None and go_term.namespace != p_namespace:
-                continue
-
-            for annotation in go_term.annotations:
+        for term in tlist:
+            for annotation in term.annotations:
                 if gene_asso_format:
                     to_print = [annotation.xdb if annotation.xdb else '',
-                                annotation.gid,
+                                annotation.gid if annotation.xdb else '',
                                 '', '', #Gene Symbol, NOT/''
-                                gid,
-                                annotation.ref,
-                                annotation.evidence,
-                                annotation.date,
-                                annotation.direct] #Direct is added in to indicate prop status
-                    print >> f, '\t'.join(to_print)
+                                term.go_id if term.go_id else '',
+                                annotation.ref if annotation.ref else '',
+                                annotation.evidence if annotation.evidence else '',
+                                annotation.date if annotation.date else '',
+                                str(annotation.direct)] #Direct is added in to indicate prop status
+                    print >> f, '\t'.join([str(x) for x in to_print])
                 else:
-                    print >> f, tid + '\t' + annotation.gid
+                    print >> f, term.go_id + '\t' + annotation.gid
         f.close()
 
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
-        logger.info('Printing ref IDs')
-
-        if terms == None:
-            terms = self.go_terms.keys()
-
-        terms.sort()
-        for tid in terms:
-            go_term = self.get_term(gid)
-            if go_term is None:
-                continue
-            if p_namespace != None and go_term.namespace != p_namespace:
-                continue
-
-            for annotation in go_term.annotations:
-                print tid + '\t' + annotation.ref + '\t' + annotation.gid
+        logger.info('print_refids')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
+        for term in tlist:
+            for annotation in term.annotations:
+                print term.go_id + '\t' + annotation.ref + '\t' + annotation.gid
 
     # be aware this is added only to be used with python script  cross_annotate_single_file_only_crossed.py
     def print_to_single_file_cross_annotated(self, out_file, terms=None, p_namespace=None):
-        logger.info('Printing to single file, cross annotated')
+        logger.info('print_to_single_file_cross_annotated')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
         f = open(out_file, 'w')
-        if terms == None:
-            terms = self.go_terms.keys()
-
-        terms.sort()
-        for tid in terms:
-            go_term = self.get_term(tid)
-            if go_term is None:
-                continue
-
-            if p_namespace != None and go_term.namespace != p_namespace:
-                continue
-
-            for gene in go_term.cross_annotated_genes:
-                print >> f, gene + '\t' + tid
+        for term in tlist:
+            for gene in term.cross_annotated_genes:
+                print >> f, gene + '\t' + term.go_id
         f.close()
 
     def map_genes(self, id_name):
         for go_term in self.go_terms.itervalues():
             go_term.map_genes(id_name)
-
 
     def populate_annotations(self, annotation_file, xdb_col=0, gene_col=1, term_col=4, ref_col=5, ev_col=6, date_col=13):
         logger.info('Populate gene annotations: %s', annotation_file)
@@ -330,7 +314,6 @@ class go:
         current_gterm = self.get_term(term_id)
         if current_gterm is None:
             return
-
 
         if relationship == 'only_in_taxon':
             for tid in tax_ids:
@@ -453,6 +436,10 @@ class GOTerm:
         self.included_in_all = True
         self.valid_go_term = True
         self.name = None
+
+    def __cmp__(self, other):
+        return cmp(self.go_id, other.go_id)
+
     def get_id(self):
         return self.go_id
     def map_genes(self, id_name):
@@ -469,4 +456,95 @@ class GOTerm:
                                                 evidence=annotation.evidence,
                                                 date=annotation.date))
         self.annotations = mapped_annotations_set
+
+    def get_annotated_genes(self):
+        genes = []
+        for annotation in self.annotations:
+            genes.append(annotation.gid)
+        return genes
+
+    def add_annotation(self, gid):
+        self.annotations.add(Annotation(gid=gid))
+
+if __name__ == '__main__':
+    from optparse import OptionParser
+
+    usage = "usage: %prog [options]"
+    parser = OptionParser(usage, version="%prog dev-unreleased")
+    parser.add_option("-o", "--obo-file", dest="obo", help="obo file", metavar="FILE")
+    parser.add_option("-a", "--association-file", dest="ass", help="gene association file", metavar="FILE")
+    parser.add_option("-b", dest="term_col", type="int", help="What column of the annotations file contains the term identifiers?", default=4)
+    parser.add_option("-g", dest="gcol", type="int", help="What column of the annotations file contains the desired identifiers?", default=1)
+    parser.add_option("-d", "--output-prefix", dest="opref", help="prefix for output files", metavar="string")
+    parser.add_option("-f", "--output-filename", dest="ofile", help="If given outputs all go term/gene annotation pairs to this file, file is created in the output prefix directory.", metavar="string")
+    parser.add_option("-i", "--id-file", dest="idfile", help="file to map excisting gene ids to the desired identifiers in the format <gene id>\\t<desired id>\\n", metavar="FILE")
+    parser.add_option("-p", action="store_true", dest="progagate", help="Should we progagate gene annotations?")
+    parser.add_option("-t", "--slim-file", dest="slim", help="GO slim file contains GO terms to output, if not given outputs all GO terms", metavar="FILE")
+    parser.add_option("-n", "--namespace", dest="nspace", help="limit the GO term output to the input namespace: (biological_process, cellular_component, molecular_function)", metavar="STRING")
+    parser.add_option("-r", dest="refids", action="store_true", help="If given keeps track of ref IDs (e.g. PMIDs) for each go term and prints to standard out")
+    parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
+
+    (options, args) = parser.parse_args()
+
+    if options.obo is None:
+        sys.stderr.write("--obo file is required.\n")
+        sys.exit()
+    if options.check_fringe is None and options.ass is None:
+        sys.stderr.write("--association file is required.\n")
+        sys.exit()
+    if options.check_fringe is None and options.opref is None and not options.refids:
+        sys.stderr.write("--prefix is required.\n")
+        sys.exit()
+    if options.check_fringe and options.slim is None:
+        sys.stderr.write("--When checking fringe, must provide slim file.\n")
+        sys.exit()
+
+    id_name = None
+    if options.idfile is not None:
+        id_name = idmap(options.idfile)
+
+    gene_ontology = go(options.obo)
+
+    # only check if fringe is valid in this obo file?
+    if options.check_fringe:
+        if gene_ontology.check_fringe(options.slim, options.nspace):
+            print "A complete fringe"
+        else:
+            print "not a fringe"
+        # now exit
+        sys.exit(0)
+
+    if options.refids:
+        gene_ontology.populate_annotations(options.ass, options.gcol, ref_col, term_col=options.term_col)
+    else:
+        gene_ontology.populate_annotations(options.ass, options.gcol, term_col=options.term_col)
+
+    if options.idfile is not None:
+        gene_ontology.map_genes(id_name)
+
+    if options.progagate:
+        gene_ontology.propagate()
+
+    if options.slim:
+        f = open(options.slim, 'r')
+        gterms = []
+        for line in f:
+            fields = line.rstrip('\n').split('\t')
+            gterms.append(fields[1])
+        f.close()
+
+        # should I only print ref IDs?
+        if options.refids:
+            gene_ontology.print_refids(gterms, options.nspace)
+        elif options.ofile:
+            gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, gterms, options.nspace)
+        else:
+            gene_ontology.print_terms(options.opref, gterms, options.nspace)
+    else:
+        if options.refids:
+            gene_ontology.print_refids(None, options.nspace)
+        elif options.ofile:
+            gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, None, options.nspace)
+        else:
+            gene_ontology.print_terms(options.opref, None, options.nspace)
 
