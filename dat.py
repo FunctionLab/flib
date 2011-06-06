@@ -119,22 +119,3 @@ class dat:
 
             print "\t".join(line)
 
-
-    def convert_mfinder(self):
-        for i in range(0, self.get_size()):
-            for j in range(i + 1, self.get_size()):
-                v = self.get_value(i, j)
-                if(v < .01):
-                    print str(i) + " " + str(j)# + " 1"
-
-
-
-
-
-#d = Dat(sys.argv[1])
-#d.convert_mfinder()
-#d.print_table()
-#id1 = d.gene_list.index('MGI:3617846')
-#id2 = d.gene_list.index('MGI:2685617')
-#print d.get_value(id1,id2)
-
