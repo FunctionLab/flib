@@ -151,3 +151,4 @@ if __name__ == '__main__':
 			dab.print_table(ofile)
 		elif options.out.endswith('.dat'):
 			dab.print_flat(ofile)
+		ofile.close()
