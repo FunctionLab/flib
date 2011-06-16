@@ -199,7 +199,7 @@ class go:
         for go_term in self.go_terms.itervalues():
             go_term.map_genes(id_name)
 
-    def populate_annotations(self, annotation_file, xdb_col=0, gene_col=1, term_col=4, ref_col=5, ev_col=6, date_col=13):
+    def populate_annotations(self, annotation_file, xdb_col=0, gene_col=None, term_col=None, ref_col=5, ev_col=6, date_col=13):
         logger.info('Populate gene annotations: %s', annotation_file)
         details_col = 3
         f = open(annotation_file, 'r')
@@ -210,17 +210,29 @@ class go:
             xdb = fields[xdb_col]
             gene = fields[gene_col]
             go_id = fields[term_col]
-            ref = fields[ref_col]
-            ev = fields[ev_col]
-            date = fields[date_col]
+            try:
+                ref = fields[ref_col]
+            except IndexError:
+                ref = None
+            try:
+                ev = fields[ev_col]
+            except IndexError:
+                ev = None
+            try:
+                date = fields[date_col]
+            except IndexError:
+                date = None
 
-            details = fields[details_col]
-            if details == 'NOT':
-                continue
-
+            try:
+                details = fields[details_col]
+                if details == 'NOT':
+                    continue
+            except IndexError:
+                pass
             go_term = self.get_term(go_id)
             if go_term is None:
                 continue
+            logger.info('Gene %s and term %s', gene, go_term.go_id)
             annotation = Annotation(xdb=xdb, gid=gene, ref=ref, evidence=ev, date=date, direct=True)
             go_term.annotations.add(annotation)
 
@@ -515,9 +527,9 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if options.refids:
-        gene_ontology.populate_annotations(options.ass, options.gcol, ref_col, term_col=options.term_col)
+        gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
     else:
-        gene_ontology.populate_annotations(options.ass, options.gcol, term_col=options.term_col)
+        gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
 
     if options.idfile is not None:
         gene_ontology.map_genes(id_name)
