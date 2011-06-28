@@ -4,6 +4,7 @@ logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 
+import re
 from idmap import idmap
 
 class go:
@@ -53,14 +54,10 @@ class go:
                 #print self.go_terms[fields[1]]
             elif inside and fields[0] == 'name:':
                 fields.pop(0)
-                gterm.name = '_'.join(fields)
-                gterm.name = gterm.name.replace("'", "_")
-                gterm.name = gterm.name.replace("-", "_")
-                gterm.name = gterm.name.replace(",", "_")
-                gterm.name = gterm.name.replace("/", "_")
-                gterm.name = gterm.name.replace("+", "_")
-                gterm.name = gterm.name.replace("(", "_")
-                gterm.name = gterm.name.replace(")", "_")
+                name = '_'.join(fields)
+                name = re.sub('[^\w\s_-]', '', name).strip().lower()
+                name = re.sub('[-\s_]+', '_', value)
+                gterm.name = name
             elif inside and fields[0] == 'namespace:':
                 gterm.namespace = fields[1]
             elif inside and fields[0] == 'alt_id:':
