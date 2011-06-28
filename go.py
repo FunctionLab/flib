@@ -55,7 +55,7 @@ class go:
             elif inside and fields[0] == 'name:':
                 fields.pop(0)
                 name = '_'.join(fields)
-                name = re.sub('[^\w\s_-]', '', name).strip().lower()
+                name = re.sub('[^\w\s_-]', '_', name).strip().lower()
                 name = re.sub('[-\s_]+', '_', name)
                 gterm.name = name
             elif inside and fields[0] == 'namespace:':
