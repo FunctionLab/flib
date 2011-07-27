@@ -52,7 +52,7 @@ class Counts:
         return(mul_count)
     
     def __rmul__(self, other):
-        return(self.__rmul__(other))
+        return(self.__mul__(other))
 
     
     def write_counts(self, filename):
