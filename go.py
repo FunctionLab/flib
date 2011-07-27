@@ -1,5 +1,5 @@
 import sys
-from counts_dhimmels import Counts
+from counts import Counts
 import logging
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -438,6 +438,7 @@ class GOTerm:
     name = None
     base_counts = None
     counts = None
+    weight = None
 
     def __init__(self, go_id):
         self.head = True
@@ -454,6 +455,7 @@ class GOTerm:
         self.name = None
         self.base_counts = Counts()
         self.counts = Counts()
+        self.weight = 0.0
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
