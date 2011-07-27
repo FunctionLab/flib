@@ -1,4 +1,5 @@
 import sys
+from counts_dhimmels import Counts
 import logging
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class go:
 
                 gterm.is_a.append(self.go_terms[pgo_id])
                 self.go_terms[pgo_id].parent_of.append(gterm)
+                gterm.child_of.append(self.go_terms[pgo_id])
             elif inside and fields[0] == 'relationship:':
                 if fields[1].find('has_part') != -1:
                     #has part is not a parental relationship -- it is actually for children.
@@ -82,6 +84,7 @@ class go:
                     self.go_terms[pgo_id] = GOTerm(pgo_id)
                 gterm.relationship.append(self.go_terms[pgo_id])
                 self.go_terms[pgo_id].parent_of.append(gterm)
+                gterm.child_of.append(self.go_terms[pgo_id])
             elif inside and fields[0] == 'is_obsolete:':
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
@@ -424,6 +427,7 @@ class GOTerm:
     is_a = None
     relationship = None
     parent_of = None
+    child_of = None
     annotations = None
     alt_id = None
     namespace = ''
@@ -432,6 +436,8 @@ class GOTerm:
     cross_annotated_genes = None
     head = None
     name = None
+    base_counts = None
+    counts = None
 
     def __init__(self, go_id):
         self.head = True
@@ -441,13 +447,22 @@ class GOTerm:
         self.is_a = []
         self.relationship = []
         self.parent_of = []
+        self.child_of = []
         self.alt_id = []
         self.included_in_all = True
         self.valid_go_term = True
         self.name = None
+        self.base_counts = Counts()
+        self.counts = Counts()
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
+
+    def __hash__(self):
+        return(self.name.__hash__())
+
+    def read_base_counts(self, filename):
+        self.base_counts.read(filename)
 
     def get_id(self):
         return self.go_id
