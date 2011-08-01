@@ -8,6 +8,7 @@ logger.setLevel(logging.ERROR)
 import re
 from idmap import idmap
 
+anywhere = set()
 class go:
     heads = None
     go_terms = None
@@ -177,15 +178,37 @@ class go:
 
 
     def dictify(self, term, thedict):
-        mydict = {}
-        for child in term.parent_of:
-            self.dictify(child, mydict)
         gset = set()
+        direct = 0
+        total = 0
         for annotation in term.annotations:
+            total += 1
+            if annotation.direct:
+                direct += 1
             gset.add(annotation.gid)
         if len(gset) < 10:
             return
-        thedict[term.name] = mydict
+        children = set()
+        child_vals = {}
+        for child in term.parent_of:
+            cdict = {}
+            sub_kids = self.dictify(child, cdict)
+            if cdict:
+                children.add(cdict['name'])
+                child_vals[cdict['name']] = cdict
+            if sub_kids:
+                for sub_kid in sub_kids:
+                    children.add(sub_kid['name'])
+                    child_vals[sub_kid['name']] = sub_kid
+        #if float(direct) / total < 0.05:
+        if direct < 10:
+            return [child_vals[child] for child in children]
+        thedict["name"] = term.name
+        thedict["direct"] = direct
+        thedict["total"] = total
+        if children:
+            [anywhere.add(child) for child in children]
+            thedict["children"] = [child_vals[child] for child in children]
         return
 
     def to_json(self):
@@ -196,7 +219,17 @@ class go:
         import simplejson
         redict = {}
         for head in self.heads:
-            self.dictify(head, redict)
+            children = self.dictify(head, redict)
+        newchildren = []
+        for child in children:
+            if child['name'] in anywhere:
+                continue
+            newchildren.append(child)
+        if children:
+            redict["name"] = "whole_body"
+            redict["direct"] = 0
+            redict["total"] = 12000
+            redict["children"] = newchildren
         return 'var ontology = ' + simplejson.dumps(redict, indent=2)
 
     # print each term ref IDs to a standard out
