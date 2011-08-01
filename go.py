@@ -175,6 +175,30 @@ class go:
                     print >> f, term.go_id + '\t' + annotation.gid
         f.close()
 
+
+    def dictify(self, term, thedict):
+        mydict = {}
+        for child in term.parent_of:
+            self.dictify(child, mydict)
+        gset = set()
+        for annotation in term.annotations:
+            gset.add(annotation.gid)
+        if len(gset) < 10:
+            return
+        thedict[term.name] = mydict
+        return
+
+    def to_json(self):
+        """
+        Return the hierarchy for all nodes with more than min genes
+        as a json string (depends on simplejson).
+        """
+        import simplejson
+        redict = {}
+        for head in self.heads:
+            self.dictify(head, redict)
+        return 'var ontology = ' + simplejson.dumps(redict, indent=2)
+
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
         logger.info('print_refids')
@@ -509,7 +533,7 @@ if __name__ == '__main__':
     parser.add_option("-n", "--namespace", dest="nspace", help="limit the GO term output to the input namespace: (biological_process, cellular_component, molecular_function)", metavar="STRING")
     parser.add_option("-r", dest="refids", action="store_true", help="If given keeps track of ref IDs (e.g. PMIDs) for each go term and prints to standard out")
     parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
-
+    parser.add_option("-j", "--json-file", dest="json", help="file to output ontology (as json) to.")
     (options, args) = parser.parse_args()
 
     if options.obo is None:
@@ -550,6 +574,12 @@ if __name__ == '__main__':
 
     if options.progagate:
         gene_ontology.propagate()
+
+    if options.json:
+        jsonstr = gene_ontology.to_json()
+        f = open(options.json, 'w')
+        f.write(jsonstr)
+        f.close()
 
     if options.slim:
         f = open(options.slim, 'r')
