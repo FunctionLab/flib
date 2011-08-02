@@ -73,8 +73,8 @@ class go:
                     self.go_terms[pgo_id] = GOTerm(pgo_id)
 
                 gterm.is_a.append(self.go_terms[pgo_id])
-                self.go_terms[pgo_id].parent_of.append(gterm)
-                gterm.child_of.append(self.go_terms[pgo_id])
+                self.go_terms[pgo_id].parent_of.add(gterm)
+                gterm.child_of.add(self.go_terms[pgo_id])
             elif inside and fields[0] == 'relationship:':
                 if fields[1].find('has_part') != -1:
                     #has part is not a parental relationship -- it is actually for children.
@@ -84,8 +84,8 @@ class go:
                 if not self.go_terms.has_key(pgo_id):
                     self.go_terms[pgo_id] = GOTerm(pgo_id)
                 gterm.relationship.append(self.go_terms[pgo_id])
-                self.go_terms[pgo_id].parent_of.append(gterm)
-                gterm.child_of.append(self.go_terms[pgo_id])
+                self.go_terms[pgo_id].parent_of.add(gterm)
+                gterm.child_of.add(self.go_terms[pgo_id])
             elif inside and fields[0] == 'is_obsolete:':
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
@@ -100,7 +100,7 @@ class go:
             self.propagate_recurse(head_gterm)
 
     def propagate_recurse(self, gterm):
-        if len(gterm.parent_of) == 0:
+        if not len(gterm.parent_of):
             logger.debug("Base case with term %s", gterm.name)
             return
 
@@ -110,6 +110,31 @@ class go:
             for annotation in child_term.annotations:
                 new_annotations.add(annotation.prop_copy())
             gterm.annotations = gterm.annotations | new_annotations
+
+    """
+    prune all gene annotations
+    """
+    def prune(self, eval_str):
+        dterms = set()
+        for (name, term) in self.go_terms.iteritems():
+            if term in self.heads:
+                print("Head term " + name)
+                continue
+            total = len(term.annotations)
+            direct = 0
+            for annotation in term.annotations:
+                if annotation.direct:
+                    direct += 1
+            if eval(eval_str):
+                for pterm in term.child_of:
+                    pterm.parent_of.update(term.parent_of)
+                    pterm.parent_of.discard(term)
+                for cterm in term.parent_of:
+                    cterm.child_of.update(term.child_of)
+                    cterm.child_of.discard(term)
+                dterms.add(name)
+        for name in dterms:
+            del self.go_terms[name]
 
     def get_term(self, tid):
         logger.debug('get_term: %s', tid)
@@ -178,37 +203,21 @@ class go:
 
 
     def dictify(self, term, thedict):
-        gset = set()
         direct = 0
-        total = 0
+        total = len(term.annotations)
         for annotation in term.annotations:
-            total += 1
             if annotation.direct:
                 direct += 1
-            gset.add(annotation.gid)
-        if len(gset) < 10:
-            return
-        children = set()
-        child_vals = {}
+        child_vals = []
         for child in term.parent_of:
             cdict = {}
-            sub_kids = self.dictify(child, cdict)
-            if cdict:
-                children.add(cdict['name'])
-                child_vals[cdict['name']] = cdict
-            if sub_kids:
-                for sub_kid in sub_kids:
-                    children.add(sub_kid['name'])
-                    child_vals[sub_kid['name']] = sub_kid
-        #if float(direct) / total < 0.05:
-        if direct < 10:
-            return [child_vals[child] for child in children]
+            self.dictify(child, cdict)
+            child_vals.append(cdict)
         thedict["name"] = term.name
         thedict["direct"] = direct
         thedict["total"] = total
-        if children:
-            [anywhere.add(child) for child in children]
-            thedict["children"] = [child_vals[child] for child in children]
+        if child_vals:
+            thedict["children"] = child_vals
         return
 
     def to_json(self):
@@ -219,17 +228,7 @@ class go:
         import simplejson
         redict = {}
         for head in self.heads:
-            children = self.dictify(head, redict)
-        newchildren = []
-        for child in children:
-            if child['name'] in anywhere:
-                continue
-            newchildren.append(child)
-        if children:
-            redict["name"] = "whole_body"
-            redict["direct"] = 0
-            redict["total"] = 12000
-            redict["children"] = newchildren
+            self.dictify(head, redict)
         return 'var ontology = ' + simplejson.dumps(redict, indent=2)
 
     # print each term ref IDs to a standard out
@@ -504,8 +503,8 @@ class GOTerm:
         self.cross_annotated_genes = set([])
         self.is_a = []
         self.relationship = []
-        self.parent_of = []
-        self.child_of = []
+        self.parent_of = set()
+        self.child_of = set()
         self.alt_id = []
         self.included_in_all = True
         self.valid_go_term = True
@@ -562,6 +561,7 @@ if __name__ == '__main__':
     parser.add_option("-f", "--output-filename", dest="ofile", help="If given outputs all go term/gene annotation pairs to this file, file is created in the output prefix directory.", metavar="string")
     parser.add_option("-i", "--id-file", dest="idfile", help="file to map excisting gene ids to the desired identifiers in the format <gene id>\\t<desired id>\\n", metavar="FILE")
     parser.add_option("-p", action="store_true", dest="progagate", help="Should we progagate gene annotations?")
+    parser.add_option("-P", "--prune", dest="prune", help="A python string that will be evaled to decide if a node should be pruned.  Available variables are 'total' and 'direct' which are the total number of annotations and the number of direct annotations.")
     parser.add_option("-t", "--slim-file", dest="slim", help="GO slim file contains GO terms to output, if not given outputs all GO terms", metavar="FILE")
     parser.add_option("-n", "--namespace", dest="nspace", help="limit the GO term output to the input namespace: (biological_process, cellular_component, molecular_function)", metavar="STRING")
     parser.add_option("-r", dest="refids", action="store_true", help="If given keeps track of ref IDs (e.g. PMIDs) for each go term and prints to standard out")
@@ -597,16 +597,16 @@ if __name__ == '__main__':
         # now exit
         sys.exit(0)
 
-    if options.refids:
-        gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
-    else:
-        gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
+    gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
 
     if options.idfile is not None:
         gene_ontology.map_genes(id_name)
 
     if options.progagate:
         gene_ontology.propagate()
+
+    if options.prune:
+        gene_ontology.prune(options.prune)
 
     if options.json:
         jsonstr = gene_ontology.to_json()
