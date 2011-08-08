@@ -510,17 +510,22 @@ class GOTerm:
         self.valid_go_term = True
         self.name = None
         self.base_counts = Counts()
-        self.counts = Counts()
+        self.counts = {'sa': Counts(), 'ta': Counts(), 'ap': Counts(), 'dw': Counts()}
         self.weight = 0.0
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
 
     def __hash__(self):
-        return(self.name.__hash__())
-
-    def read_base_counts(self, filename):
+        return(self.go_id.__hash__())
+    
+    def __repr__(self):
+        return(self.go_id + ': ' + self.name)
+    
+    def read_base_counts(self, filename, mult=25):
         self.base_counts.read(filename)
+        if mult != 1:
+            self.base_counts = mult * self.base_counts
 
     def get_id(self):
         return self.go_id
