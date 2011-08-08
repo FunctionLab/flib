@@ -117,14 +117,15 @@ class go:
     def prune(self, eval_str):
         dterms = set()
         for (name, term) in self.go_terms.iteritems():
-            if term in self.heads:
-                print("Head term " + name)
-                continue
             total = len(term.annotations)
             direct = 0
             for annotation in term.annotations:
                 if annotation.direct:
                     direct += 1
+            term.num_direct = direct
+            if term in self.heads:
+                print("Head term " + name)
+                continue
             if eval(eval_str):
                 for pterm in term.child_of:
                     pterm.parent_of.update(term.parent_of)
@@ -136,6 +137,7 @@ class go:
         for name in dterms:
             del self.go_terms[name]
 
+    
     def get_term(self, tid):
         logger.debug('get_term: %s', tid)
         term = None
@@ -495,6 +497,7 @@ class GOTerm:
     base_counts = None
     counts = None
     weight = None
+    num_direct = None
 
     def __init__(self, go_id):
         self.head = True
@@ -512,6 +515,7 @@ class GOTerm:
         self.base_counts = Counts()
         self.counts = {'sa': Counts(), 'ta': Counts(), 'ap': Counts(), 'dw': Counts()}
         self.weight = 0.0
+        self.num_direct = -1
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
