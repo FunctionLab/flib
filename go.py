@@ -118,14 +118,15 @@ class go:
         dterms = set()
         heads = set(self.heads)
         for (name, term) in self.go_terms.iteritems():
-            if term in heads:
-                print("Head term " + name)
-                continue
             total = len(term.annotations)
             direct = 0
             for annotation in term.annotations:
                 if annotation.direct:
                     direct += 1
+            term.num_direct = direct
+            if term in heads:
+                print("Head term " + name)
+                continue
             if eval(eval_str):
                 for pterm in term.child_of:
                     pterm.parent_of.update(term.parent_of)
@@ -148,6 +149,7 @@ class go:
                     for hterm in intersection:
                         hterm.parent_of.remove(term)
 
+    
     def get_term(self, tid):
         logger.debug('get_term: %s', tid)
         term = None
@@ -507,6 +509,7 @@ class GOTerm:
     base_counts = None
     counts = None
     weight = None
+    num_direct = None
 
     def __init__(self, go_id):
         self.head = True
@@ -522,17 +525,23 @@ class GOTerm:
         self.valid_go_term = True
         self.name = None
         self.base_counts = Counts()
-        self.counts = Counts()
+        self.counts = {'sa': Counts(), 'ta': Counts(), 'ap': Counts(), 'dw': Counts()}
         self.weight = 0.0
+        self.num_direct = -1
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
 
     def __hash__(self):
-        return(self.name.__hash__())
-
-    def read_base_counts(self, filename):
+        return(self.go_id.__hash__())
+    
+    def __repr__(self):
+        return(self.go_id + ': ' + self.name)
+    
+    def read_base_counts(self, filename, mult=25):
         self.base_counts.read(filename)
+        if mult != 1:
+            self.base_counts = mult * self.base_counts
 
     def get_id(self):
         return self.go_id
@@ -557,8 +566,8 @@ class GOTerm:
             genes.append(annotation.gid)
         return genes
 
-    def add_annotation(self, gid):
-        self.annotations.add(Annotation(gid=gid))
+    def add_annotation(self, gid, ref=None):
+        self.annotations.add(Annotation(gid=gid, ref=ref))
 
 if __name__ == '__main__':
     from optparse import OptionParser
