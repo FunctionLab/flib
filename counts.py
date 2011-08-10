@@ -81,17 +81,17 @@ class Counts:
             x.to_props()
 
     @staticmethod
-    def ave_props(counts_list):
-        #print(counts_list)
+    def ave_props(counts_list, weight_list=None):
         if not len(counts_list):
             return None
         ave_counts = Counts()
         ave_counts.num_datasets = counts_list[0].num_datasets
         ave_counts.tot_negats = 1
         ave_counts.tot_posits = 1
+        if weight_list:
+            weight_list = [float(x) / sum(weight_list) for x in weight_list]
         for i in xrange(ave_counts.num_datasets):
-            #print(i)
-            ave_counts.tables.append(ConTable.ave_props([x.tables[i] for x in counts_list]))
+            ave_counts.tables.append(ConTable.ave_props([x.tables[i] for x in counts_list], weight_list))
         return(ave_counts)
 
     def counts_from_props(self, mult=100000):
@@ -149,18 +149,24 @@ class ConTable:
             self.pos_props = [float(x) / tot_posits for x in self.pos_bins]
 
     @staticmethod
-    def ave_props(con_table_list):
+    def ave_props(con_table_list, weight_list=None):
         num_of_con_tables = len(con_table_list)
         num_of_bins = len(con_table_list[0].neg_props)
         c = ConTable()
         c.name = con_table_list[0].name
-        for i in range(num_of_bins):
-            c.neg_props.append(sum([x.neg_props[i] for x in con_table_list]) /
-                               num_of_con_tables)
-            c.pos_props.append(sum([x.pos_props[i] for x in con_table_list]) /
-                               num_of_con_tables)
+        if not weight_list:
+            for i in range(num_of_bins):
+                c.neg_props.append(sum([x.neg_props[i] for x in con_table_list]) /
+                                   num_of_con_tables)
+                c.pos_props.append(sum([x.pos_props[i] for x in con_table_list]) /
+                                   num_of_con_tables)
+        else:
+            for i in range(num_of_bins):
+                c.neg_props.append(sum([con_table_list[j].neg_props[i] * weight_list[j] for j in range(len(con_table_list))]))
+                c.pos_props.append(sum([con_table_list[j].pos_props[i] * weight_list[j] for j in range(len(con_table_list))]))
         return(c)
 
+    
     def __mul__(self, other):
         if isinstance(other, (long, int, float)):
             mul_table = ConTable(self.name)
