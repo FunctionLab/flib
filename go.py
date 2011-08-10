@@ -116,8 +116,9 @@ class go:
     """
     def prune(self, eval_str):
         dterms = set()
+        heads = set(self.heads)
         for (name, term) in self.go_terms.iteritems():
-            if term in self.heads:
+            if term in heads:
                 print("Head term " + name)
                 continue
             total = len(term.annotations)
@@ -135,6 +136,17 @@ class go:
                 dterms.add(name)
         for name in dterms:
             del self.go_terms[name]
+
+        #remove connections to root if there are other parents
+        for (name, term) in self.go_terms.iteritems():
+            #if there is something in the intersection
+            intersection = term.child_of & heads
+            if (intersection):
+                #if the intersection isn't the only thing it's a child of
+                if (term.child_of - heads):
+                    term.child_of -= intersection
+                    for hterm in intersection:
+                        hterm.parent_of.remove(term)
 
     def get_term(self, tid):
         logger.debug('get_term: %s', tid)
