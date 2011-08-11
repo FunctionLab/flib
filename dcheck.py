@@ -49,7 +49,12 @@ class DCheck:
     def rec_prec(self):
         "A list of (recall, precision) for each cut."
         tot_pos = float(self.positives)
-        return [(tp / tot_pos, tp / float(tp + fp)) for (tp, fp, tn, fn) in self.__results]
+        final_list = []
+        for (tp, fp, tn, fn) in self.__results:
+            if not (tp + fp):
+                continue
+            final_list.append((tp / tot_pos, tp / float(tp + fp)))
+        return final_list
 
     def read(self, dcheck=None):
         "Read the file located at the keyward argument dcheck and populate object."
