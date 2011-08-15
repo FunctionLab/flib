@@ -124,6 +124,18 @@ class dat:
 			for j in range(i+1, self.get_size()):
 				print >> out_file, self.gene_list[i] + '\t' + self.gene_list[j] + '\t' + str(self.get_value(i, j))
 			
+
+	def get_neighbors(self, gene_str, cutoff):
+		neighbors = set()
+		gene_id = self.get_index(gene_str)
+		if gene_id is None:
+			return neighbors
+		for i in range(0,len(self.gene_list)):
+			if self.get_value(gene_id, i) > cutoff:
+				neighbors.add(self.gene_list[i]) 
+		return neighbors
+
+
 if __name__ == '__main__':
 	from optparse import OptionParser
 
@@ -144,7 +156,7 @@ if __name__ == '__main__':
 	dab = dat(options.dab)
 
 	if options.out is None:
-		dab.print_flat()
+		dab.print_table()
 	else:
 		ofile = open(options.out, 'w')
 		if options.out.endswith('.pcl'):
