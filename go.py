@@ -199,7 +199,7 @@ class go:
         for go_term in self.go_terms.itervalues():
             go_term.map_genes(id_name)
 
-    def populate_annotations(self, annotation_file, xdb_col=0, gene_col=1, term_col=4, ref_col=5, ev_col=6, date_col=13):
+    def populate_annotations(self, annotation_file, xdb_col=0, gene_col=1, term_col=4, ref_col=5, ev_col=6, date_col=13, short_form=False):
         logger.info('Populate gene annotations: %s', annotation_file)
         details_col = 3
         f = open(annotation_file, 'r')
@@ -210,9 +210,15 @@ class go:
             xdb = fields[xdb_col]
             gene = fields[gene_col]
             go_id = fields[term_col]
-            ref = fields[ref_col]
-            ev = fields[ev_col]
-            date = fields[date_col]
+            
+            if not short_form:
+                ref = fields[ref_col]
+                ev = fields[ev_col]
+                date = fields[date_col]
+            else:
+                ref = None
+                ev = None
+                date = None
 
             details = fields[details_col]
             if details == 'NOT':
@@ -483,6 +489,7 @@ if __name__ == '__main__':
     parser.add_option("-n", "--namespace", dest="nspace", help="limit the GO term output to the input namespace: (biological_process, cellular_component, molecular_function)", metavar="STRING")
     parser.add_option("-r", dest="refids", action="store_true", help="If given keeps track of ref IDs (e.g. PMIDs) for each go term and prints to standard out")
     parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
+    parser.add_option("-s", action="store_true", dest="short_form", help="short form association file: only parse db, gene and annotation")
 
     (options, args) = parser.parse_args()
 
@@ -515,9 +522,9 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if options.refids:
-        gene_ontology.populate_annotations(options.ass, options.gcol, ref_col, term_col=options.term_col)
+        gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col, short_form=options.short_form)
     else:
-        gene_ontology.populate_annotations(options.ass, options.gcol, term_col=options.term_col)
+        gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col, short_form=options.short_form)
 
     if options.idfile is not None:
         gene_ontology.map_genes(id_name)
