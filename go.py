@@ -203,13 +203,16 @@ class go:
             for annotation in term.annotations:
                 if gene_asso_format:
                     to_print = [annotation.xdb if annotation.xdb else '',
-                                annotation.gid if annotation.xdb else '',
+                                annotation.gid if annotation.gid else '',
                                 '', '', #Gene Symbol, NOT/''
                                 term.go_id if term.go_id else '',
                                 annotation.ref if annotation.ref else '',
                                 annotation.evidence if annotation.evidence else '',
                                 annotation.date if annotation.date else '',
-                                str(annotation.direct)] #Direct is added in to indicate prop status
+                                str(annotation.direct), #Direct is added in to indicate prop status
+                                str(annotation.cross_annotated), #cross annotated is added in to indicate cross status
+				annotation.origin if annotation.cross_annotated else '', #if cross annotated, where the annotation is from
+                                str(annotation.ortho_evidence) if annotation.ortho_evidence else '','',''] #if cross annotated, then the evidence of the cross_annotation (e.g. bootstrap value, p-value)
                     print >> f, '\t'.join([str(x) for x in to_print])
                 else:
                     print >> f, term.go_id + '\t' + annotation.gid
@@ -277,6 +280,11 @@ class go:
             if line[0] == '!':
                 continue
             fields = line.rstrip('\n').split('\t')
+
+            # skip lines with incorrect format
+            if ev_col >= len(fields):
+                continue
+            
             xdb = fields[xdb_col]
             gene = fields[gene_col]
             go_id = fields[term_col]
@@ -293,6 +301,15 @@ class go:
                 date = fields[date_col]
             except IndexError:
                 date = None
+
+            if date_col < len(fields):
+                date = fields[date_col]
+            else:
+                date = None
+                
+            details = fields[details_col]
+            if details == 'NOT':
+                continue
 
             try:
                 details = fields[details_col]
@@ -468,26 +485,29 @@ class go:
             return False
 
 class Annotation(object):
-    def __init__(self, xdb=None, gid=None, ref=None, evidence=None, date=None, direct=False):
+    def __init__(self, xdb=None, gid=None, ref=None, evidence=None, date=None, direct=False, cross_annotated=False, origin=None, ortho_evidence=None):
         super(Annotation, self).__setattr__('xdb', xdb)
         super(Annotation, self).__setattr__('gid', gid)
         super(Annotation, self).__setattr__('ref', ref)
         super(Annotation, self).__setattr__('evidence', evidence)
         super(Annotation, self).__setattr__('date', date)
         super(Annotation, self).__setattr__('direct', direct)
-
+        super(Annotation, self).__setattr__('cross_annotated', cross_annotated)
+        super(Annotation, self).__setattr__('origin', origin)
+        super(Annotation, self).__setattr__('ortho_evidence', ortho_evidence)
+        
     def prop_copy(self):
         return Annotation(xdb=self.xdb, gid=self.gid, ref=self.ref,
-                          evidence=self.evidence, date=self.date, direct=False)
+                          evidence=self.evidence, date=self.date, direct=False, cross_annotated=False, ortho_evidence=self.ortho_evidence)
 
     def __hash__(self):
         return hash((self.xdb, self.gid, self.ref, self.evidence,
-                     self.date, self.direct))
+                     self.date, self.direct, self.cross_annotated, self.ortho_evidence))
 
     def __eq__(self, other):
         return (self.xdb, self.gid, self.ref, self.evidence, self.date,
-                self.direct).__eq__((other.xdb, other.gid, other.ref,
-                                     other.evidence, other.date, other.direct))
+                self.direct, self.cross_annotated, self.ortho_evidence).__eq__((other.xdb, other.gid, other.ref,
+                                                                                other.evidence, other.date, other.direct, other.cross_annotated, other.ortho_evidence))
 
     def __setattr__(self, *args):
         raise TypeError("Attempt to modify immutable object.")
@@ -507,6 +527,7 @@ class GOTerm:
     cross_annotated_genes = None
     head = None
     name = None
+    
     base_counts = None
     counts = None
     weight = None
@@ -555,21 +576,28 @@ class GOTerm:
                 continue
             for mgene in mapped_genes:
                 mapped_annotations_set.add(Annotation(xdb=None, gid=mgene,
-                                                direct=annotation.direct,
-                                                ref=annotation.ref,
-                                                evidence=annotation.evidence,
-                                                date=annotation.date))
+                                                      direct=annotation.direct,
+                                                      ref=annotation.ref,
+                                                      evidence=annotation.evidence,
+                                                      date=annotation.date,
+                                                      cross_annotated=annotation.cross_annotated ))
         self.annotations = mapped_annotations_set
-
-    def get_annotated_genes(self):
+        
+    def get_annotated_genes(self, include_cross_annotated=True):
         genes = []
         for annotation in self.annotations:
+            if (not include_cross_annotated) and annotation.cross_annotated:
+                continue
             genes.append(annotation.gid)
         return genes
-
-    def add_annotation(self, gid, ref=None):
-        self.annotations.add(Annotation(gid=gid, ref=ref))
-
+    
+    def add_annotation(self, gid, cross_annotated=False, allow_duplicate_gid=True, origin=None, ortho_evidence=None):
+        if not allow_duplicate_gid:
+            for annotated in self.annotations:
+                if annotated.gid == gid:
+                    return
+        self.annotations.add(Annotation(gid=gid, cross_annotated=cross_annotated, origin=origin, ortho_evidence=ortho_evidence))
+        
 if __name__ == '__main__':
     from optparse import OptionParser
 
