@@ -280,10 +280,6 @@ class go:
             if line[0] == '!':
                 continue
             fields = line.rstrip('\n').split('\t')
-
-            # skip lines with incorrect format
-            if ev_col >= len(fields):
-                continue
             
             xdb = fields[xdb_col]
             gene = fields[gene_col]
