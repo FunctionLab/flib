@@ -149,7 +149,7 @@ class go:
                     for hterm in intersection:
                         hterm.parent_of.remove(term)
 
-    
+
     def get_term(self, tid):
         logger.debug('get_term: %s', tid)
         term = None
@@ -212,7 +212,7 @@ class go:
                                 str(annotation.direct), #Direct is added in to indicate prop status
                                 str(annotation.cross_annotated), #cross annotated is added in to indicate cross status
 				annotation.origin if annotation.cross_annotated else '', #if cross annotated, where the annotation is from
-                                str(annotation.ortho_evidence) if annotation.ortho_evidence else '','',''] #if cross annotated, then the evidence of the cross_annotation (e.g. bootstrap value, p-value)
+                                str(annotation.ortho_evidence) if annotation.ortho_evidence else '', '', ''] #if cross annotated, then the evidence of the cross_annotation (e.g. bootstrap value, p-value)
                     print >> f, '\t'.join([str(x) for x in to_print])
                 else:
                     print >> f, term.go_id + '\t' + annotation.gid
@@ -280,7 +280,7 @@ class go:
             if line[0] == '!':
                 continue
             fields = line.rstrip('\n').split('\t')
-            
+
             xdb = fields[xdb_col]
             gene = fields[gene_col]
             go_id = fields[term_col]
@@ -302,7 +302,7 @@ class go:
                 date = fields[date_col]
             else:
                 date = None
-                
+
             details = fields[details_col]
             if details == 'NOT':
                 continue
@@ -491,7 +491,7 @@ class Annotation(object):
         super(Annotation, self).__setattr__('cross_annotated', cross_annotated)
         super(Annotation, self).__setattr__('origin', origin)
         super(Annotation, self).__setattr__('ortho_evidence', ortho_evidence)
-        
+
     def prop_copy(self):
         return Annotation(xdb=self.xdb, gid=self.gid, ref=self.ref,
                           evidence=self.evidence, date=self.date, direct=False, cross_annotated=False, ortho_evidence=self.ortho_evidence)
@@ -523,7 +523,7 @@ class GOTerm:
     cross_annotated_genes = None
     head = None
     name = None
-    
+
     base_counts = None
     counts = None
     weight = None
@@ -552,10 +552,10 @@ class GOTerm:
 
     def __hash__(self):
         return(self.go_id.__hash__())
-    
+
     def __repr__(self):
         return(self.go_id + ': ' + self.name)
-    
+
     def read_base_counts(self, filename, mult=25):
         self.base_counts.read(filename)
         if mult != 1:
@@ -576,9 +576,9 @@ class GOTerm:
                                                       ref=annotation.ref,
                                                       evidence=annotation.evidence,
                                                       date=annotation.date,
-                                                      cross_annotated=annotation.cross_annotated ))
+                                                      cross_annotated=annotation.cross_annotated))
         self.annotations = mapped_annotations_set
-        
+
     def get_annotated_genes(self, include_cross_annotated=True):
         genes = []
         for annotation in self.annotations:
@@ -586,14 +586,14 @@ class GOTerm:
                 continue
             genes.append(annotation.gid)
         return genes
-    
+
     def add_annotation(self, gid, cross_annotated=False, allow_duplicate_gid=True, origin=None, ortho_evidence=None):
         if not allow_duplicate_gid:
             for annotated in self.annotations:
                 if annotated.gid == gid:
                     return
         self.annotations.add(Annotation(gid=gid, cross_annotated=cross_annotated, origin=origin, ortho_evidence=ortho_evidence))
-        
+
 if __name__ == '__main__':
     from optparse import OptionParser
 
@@ -613,7 +613,7 @@ if __name__ == '__main__':
     parser.add_option("-r", dest="refids", action="store_true", help="If given keeps track of ref IDs (e.g. PMIDs) for each go term and prints to standard out")
     parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
     parser.add_option("-j", "--json-file", dest="json", help="file to output ontology (as json) to.")
-
+    parser.add_option("-A", dest="assoc_format", action="store_true", help="If we are printing to a file (-f), pass this to get a full association file back.")
     (options, args) = parser.parse_args()
 
     if options.obo is None:
@@ -645,7 +645,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
-    
+
     if options.idfile is not None:
         gene_ontology.map_genes(id_name)
 
@@ -673,14 +673,14 @@ if __name__ == '__main__':
         if options.refids:
             gene_ontology.print_refids(gterms, options.nspace)
         elif options.ofile:
-            gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, gterms, options.nspace)
+            gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, gterms, options.nspace, options.assoc_format)
         else:
             gene_ontology.print_terms(options.opref, gterms, options.nspace)
     else:
         if options.refids:
             gene_ontology.print_refids(None, options.nspace)
         elif options.ofile:
-            gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, None, options.nspace)
+            gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, None, options.nspace, options.assoc_format)
         else:
             gene_ontology.print_terms(options.opref, None, options.nspace)
 
