@@ -83,7 +83,15 @@ class go:
                 pgo_id = fields[2]
                 if not self.go_terms.has_key(pgo_id):
                     self.go_terms[pgo_id] = GOTerm(pgo_id)
-                gterm.relationship.append(self.go_terms[pgo_id])
+
+                # Check which relationship you are with this parent go term
+                if fields[1] == 'regulates' or fields[1] == 'positively_regulates' or fields[1] == 'negatively_regulates':
+                    gterm.relationship_regulates.append(self.go_terms[pgo_id])
+                elif fields[1] == 'part_of':
+                    gterm.relationship_part_of.append(self.go_terms[pgo_id])
+                else:
+                    logger.info("Unkown relationship %s", self.go_terms[pgo_id].name)
+                
                 self.go_terms[pgo_id].parent_of.add(gterm)
                 gterm.child_of.add(self.go_terms[pgo_id])
             elif inside and fields[0] == 'is_obsolete:':
@@ -107,8 +115,25 @@ class go:
         for child_term in gterm.parent_of:
             self.propagate_recurse(child_term)
             new_annotations = set()
-            for annotation in child_term.annotations:
-                new_annotations.add(annotation.prop_copy())
+
+            regulates_relation = (gterm in child_term.relationship_regulates)
+            part_of_relation = (gterm in child_term.relationship_part_of)
+            
+            for annotation in child_term.annotations:                
+                copied_annotation = None
+                # if this relation with child is a regulates(and its sub class) filter annotations
+                if regulates_relation:
+                    # only add annotations that didn't come from a part of or regulates relationship
+                    if annotation.ready_regulates_cutoff:
+                        continue
+                    else:
+                        copied_annotation = annotation.prop_copy(ready_regulates_cutoff=True)
+                elif part_of_relation:
+                    copied_annotation = annotation.prop_copy(ready_regulates_cutoff=True)
+                else:
+                    copied_annotation = annotation.prop_copy()
+                    
+                new_annotations.add(copied_annotation)
             gterm.annotations = gterm.annotations | new_annotations
 
     """
@@ -481,7 +506,7 @@ class go:
             return False
 
 class Annotation(object):
-    def __init__(self, xdb=None, gid=None, ref=None, evidence=None, date=None, direct=False, cross_annotated=False, origin=None, ortho_evidence=None):
+    def __init__(self, xdb=None, gid=None, ref=None, evidence=None, date=None, direct=False, cross_annotated=False, origin=None, ortho_evidence=None, ready_regulates_cutoff=False):
         super(Annotation, self).__setattr__('xdb', xdb)
         super(Annotation, self).__setattr__('gid', gid)
         super(Annotation, self).__setattr__('ref', ref)
@@ -491,19 +516,24 @@ class Annotation(object):
         super(Annotation, self).__setattr__('cross_annotated', cross_annotated)
         super(Annotation, self).__setattr__('origin', origin)
         super(Annotation, self).__setattr__('ortho_evidence', ortho_evidence)
-
-    def prop_copy(self):
+        super(Annotation, self).__setattr__('ready_regulates_cutoff', ready_regulates_cutoff)
+        
+    def prop_copy(self, ready_regulates_cutoff=None):
+        if ready_regulates_cutoff == None:
+            ready_regulates_cutoff = self.ready_regulates_cutoff
+        
         return Annotation(xdb=self.xdb, gid=self.gid, ref=self.ref,
-                          evidence=self.evidence, date=self.date, direct=False, cross_annotated=False, ortho_evidence=self.ortho_evidence)
-
+                          evidence=self.evidence, date=self.date, direct=False, cross_annotated=False,
+                          ortho_evidence=self.ortho_evidence, ready_regulates_cutoff=ready_regulates_cutoff)
+    
     def __hash__(self):
         return hash((self.xdb, self.gid, self.ref, self.evidence,
-                     self.date, self.direct, self.cross_annotated, self.ortho_evidence))
+                     self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff))
 
     def __eq__(self, other):
         return (self.xdb, self.gid, self.ref, self.evidence, self.date,
-                self.direct, self.cross_annotated, self.ortho_evidence).__eq__((other.xdb, other.gid, other.ref,
-                                                                                other.evidence, other.date, other.direct, other.cross_annotated, other.ortho_evidence))
+                self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff).__eq__((other.xdb, other.gid, other.ref,
+                                                                                other.evidence, other.date, other.direct, other.cross_annotated, other.ortho_evidence, other.ready_regulates_cutoff))
 
     def __setattr__(self, *args):
         raise TypeError("Attempt to modify immutable object.")
@@ -535,7 +565,8 @@ class GOTerm:
         self.annotations = set([])
         self.cross_annotated_genes = set([])
         self.is_a = []
-        self.relationship = []
+        self.relationship_regulates = []
+        self.relationship_part_of = []
         self.parent_of = set()
         self.child_of = set()
         self.alt_id = []
