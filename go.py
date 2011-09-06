@@ -505,6 +505,49 @@ class go:
                     logger.warning("Missing leaf terms: %s", lgoterm)
             return False
 
+    """
+    get propagated descendents of term
+    """
+    def get_descendents(self, gterm):
+	if not self.go_terms.has_key(gterm):
+	    return set()
+	term = self.go_terms[gterm]
+	
+	if len(term.parent_of) == 0:
+	    return set()
+
+	child_terms = set()
+	for child_term in term.parent_of:
+	    if child_term.namespace != term.namespace:
+		continue
+	    child_terms.add( child_term.go_id )
+	    child_terms = child_terms | self.get_descendents( child_term.go_id )
+
+	return child_terms
+
+    """
+    get propagated ancestors of term 
+    """
+    def get_ancestors(self, gterm):
+        if self.go_terms.has_key(gterm) is False:
+            return set()
+        term = self.go_terms[gterm]
+
+        if len(term.child_of) == 0:
+            return set()
+
+        parent_terms = set()
+        for parent_term in term.child_of:
+            if parent_term.namespace != term.namespace:
+                continue
+            parent_terms.add( parent_term.go_id )
+            parent_terms = parent_terms | self.get_ancestors( parent_term.go_id )
+
+        return parent_terms
+
+
+
+
 class Annotation(object):
     def __init__(self, xdb=None, gid=None, ref=None, evidence=None, date=None, direct=False, cross_annotated=False, origin=None, ortho_evidence=None, ready_regulates_cutoff=False):
         super(Annotation, self).__setattr__('xdb', xdb)
@@ -624,6 +667,12 @@ class GOTerm:
                 if annotated.gid == gid:
                     return
         self.annotations.add(Annotation(gid=gid, cross_annotated=cross_annotated, origin=origin, ortho_evidence=ortho_evidence))
+        
+    def get_annotation_size(self):
+        return len(self.annotations)
+    
+    def get_namespace(self):
+        return self.namespace
 
 if __name__ == '__main__':
     from optparse import OptionParser
