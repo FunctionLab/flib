@@ -52,6 +52,8 @@ if __name__ == '__main__':
     parser = OptionParser(usage, version="%prog dev-unreleased")
     parser.add_option("-i", "--input-file", dest="input", help="input file", metavar="FILE")
     parser.add_option("-m", "--mappings-file", dest="mapping", help="mappings file", metavar="FILE")
+    parser.add_option("-c", "--col", dest="col", help="column to remap")
+    parser.add_option("-s", "--skip", dest="skip", help="lines to skip (i.e. just print the first S lines)", default = 0)
     (options, args) = parser.parse_args()
 
     if options.input is None:
@@ -60,13 +62,28 @@ if __name__ == '__main__':
     if options.mapping is None:
         sys.stderr.write("--mappings-file is required.\n")
         sys.exit()
+    col = None
+    if options.col:
+        col = int(options.col)
     
     id_name = idmap(options.mapping)
     
-    for line in open(options.input):
-        vals = id_name.get(line.strip())
-        if vals is None:
+    for (i, line) in enumerate(open(options.input)):
+        if (i < int(options.skip)):
+            print(line.rstrip('\n'))
             continue
-        for val in vals:
-            print(val)
+        if col is not None:
+            toks = line.rstrip('\n').split('\t')
+            matches = id_name.get(toks[col])
+            if matches is None:
+                continue
+            for match in matches:
+                toks[col] = match
+                print('\t'.join(toks))
+        else:
+            vals = id_name.get(line.strip())
+            if vals is None:
+                continue
+            for val in vals:
+                print(val)
 
