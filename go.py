@@ -350,10 +350,6 @@ class go:
             else:
                 date = None
 
-            details = fields[details_col]
-            if details == 'NOT':
-                continue
-
             try:
                 details = fields[details_col]
                 if details == 'NOT':
@@ -592,11 +588,17 @@ class Annotation(object):
                           ortho_evidence=self.ortho_evidence, ready_regulates_cutoff=ready_regulates_cutoff)
     
     def __hash__(self):
-        return hash((self.xdb, self.gid, self.ref, self.evidence,
-                     self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff. self.origin))
+        return hash((self.xdb, self.gid, self.ref, self.evidence, self.date, 
+                     self.direct, self.cross_annotated, self.ortho_evidence, 
+                     self.ready_regulates_cutoff, self.origin))
 
     def __eq__(self, other):
-        return (self.xdb, self.gid, self.ref, self.evidence, self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff, self.origin).__eq__((other.xdb, other.gid, other.ref, other.evidence, other.date, other.direct, other.cross_annotated, other.ortho_evidence, other.ready_regulates_cutoff, other.origin))
+        return (self.xdb, self.gid, self.ref, self.evidence, self.date, 
+                self.direct, self.cross_annotated, self.ortho_evidence, 
+                self.ready_regulates_cutoff, self.origin).__eq__((other.xdb, 
+                    other.gid, other.ref, other.evidence, other.date, 
+                    other.direct, other.cross_annotated, other.ortho_evidence, 
+                    other.ready_regulates_cutoff, other.origin))
 
     def __setattr__(self, *args):
         raise TypeError("Attempt to modify immutable object.")
