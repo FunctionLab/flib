@@ -1,5 +1,4 @@
 import sys
-from counts import Counts
 import logging
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -8,7 +7,6 @@ logger.setLevel(logging.ERROR)
 import re
 from idmap import idmap
 
-anywhere = set()
 class go:
     heads = None
     go_terms = None
@@ -83,7 +81,6 @@ class go:
                 pgo_id = fields[2]
                 if not self.go_terms.has_key(pgo_id):
                     self.go_terms[pgo_id] = GOTerm(pgo_id)
-
                 # Check which relationship you are with this parent go term
                 if fields[1] == 'regulates' or fields[1] == 'positively_regulates' or fields[1] == 'negatively_regulates':
                     gterm.relationship_regulates.append(self.go_terms[pgo_id])
@@ -91,7 +88,6 @@ class go:
                     gterm.relationship_part_of.append(self.go_terms[pgo_id])
                 else:
                     logger.info("Unkown relationship %s", self.go_terms[pgo_id].name)
-                
                 self.go_terms[pgo_id].parent_of.add(gterm)
                 gterm.child_of.add(self.go_terms[pgo_id])
             elif inside and fields[0] == 'is_obsolete:':
@@ -148,7 +144,6 @@ class go:
             for annotation in term.annotations:
                 if annotation.direct:
                     direct += 1
-            term.num_direct = direct
             if term in heads:
                 print("Head term " + name)
                 continue
@@ -162,7 +157,6 @@ class go:
                 dterms.add(name)
         for name in dterms:
             del self.go_terms[name]
-
         #remove connections to root if there are other parents
         for (name, term) in self.go_terms.iteritems():
             #if there is something in the intersection
@@ -173,7 +167,6 @@ class go:
                     term.child_of -= intersection
                     for hterm in intersection:
                         hterm.parent_of.remove(term)
-
 
     def get_term(self, tid):
         logger.debug('get_term: %s', tid)
@@ -293,6 +286,35 @@ class go:
                 print >> f, gene + '\t' + term.go_id
         f.close()
 
+    def dictify(self, term, thedict):
+        direct = 0
+        total = len(term.annotations)
+        for annotation in term.annotations:
+            if annotation.direct:
+                direct += 1
+        child_vals = []
+        for child in term.parent_of:
+            cdict = {}
+            self.dictify(child, cdict)
+            child_vals.append(cdict)
+        thedict["name"] = term.name
+        thedict["direct"] = direct
+        thedict["total"] = total
+        if child_vals:
+            thedict["children"] = child_vals
+        return
+
+    def to_json(self):
+        """
+        Return the hierarchy for all nodes with more than min genes
+        as a json string (depends on simplejson).
+        """
+        import simplejson
+        redict = {}
+        for head in self.heads:
+            self.dictify(head, redict)
+        return 'var ontology = ' + simplejson.dumps(redict, indent=2)
+
     def map_genes(self, id_name):
         for go_term in self.go_terms.itervalues():
             go_term.map_genes(id_name)
@@ -327,10 +349,6 @@ class go:
                 date = fields[date_col]
             else:
                 date = None
-
-            details = fields[details_col]
-            if details == 'NOT':
-                continue
 
             try:
                 details = fields[details_col]
@@ -570,11 +588,17 @@ class Annotation(object):
                           ortho_evidence=self.ortho_evidence, ready_regulates_cutoff=ready_regulates_cutoff)
     
     def __hash__(self):
-        return hash((self.xdb, self.gid, self.ref, self.evidence,
-                     self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff. self.origin))
+        return hash((self.xdb, self.gid, self.ref, self.evidence, self.date, 
+                     self.direct, self.cross_annotated, self.ortho_evidence, 
+                     self.ready_regulates_cutoff, self.origin))
 
     def __eq__(self, other):
-        return (self.xdb, self.gid, self.ref, self.evidence, self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff, self.origin).__eq__((other.xdb, other.gid, other.ref, other.evidence, other.date, other.direct, other.cross_annotated, other.ortho_evidence, other.ready_regulates_cutoff, other.origin))
+        return (self.xdb, self.gid, self.ref, self.evidence, self.date, 
+                self.direct, self.cross_annotated, self.ortho_evidence, 
+                self.ready_regulates_cutoff, self.origin).__eq__((other.xdb, 
+                    other.gid, other.ref, other.evidence, other.date, 
+                    other.direct, other.cross_annotated, other.ortho_evidence, 
+                    other.ready_regulates_cutoff, other.origin))
 
     def __setattr__(self, *args):
         raise TypeError("Attempt to modify immutable object.")
@@ -594,11 +618,8 @@ class GOTerm:
     cross_annotated_genes = None
     head = None
     name = None
-
     base_counts = None
     counts = None
-    weight = None
-    num_direct = None
 
     def __init__(self, go_id):
         self.head = True
@@ -614,10 +635,8 @@ class GOTerm:
         self.included_in_all = True
         self.valid_go_term = True
         self.name = None
-        self.base_counts = Counts()
-        self.counts = {'sa': Counts(), 'ta': Counts(), 'ap': Counts(), 'dw': Counts()}
-        self.weight = 0.0
-        self.num_direct = -1
+        self.base_counts = None
+        self.counts = None
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
@@ -628,13 +647,9 @@ class GOTerm:
     def __repr__(self):
         return(self.go_id + ': ' + self.name)
 
-    def read_base_counts(self, filename, mult=25):
-        self.base_counts.read(filename)
-        if mult != 1:
-            self.base_counts = mult * self.base_counts
-
     def get_id(self):
         return self.go_id
+
     def map_genes(self, id_name):
         mapped_annotations_set = set([])
         for annotation in self.annotations:
@@ -659,12 +674,12 @@ class GOTerm:
             genes.append(annotation.gid)
         return genes
 
-    def add_annotation(self, gid, cross_annotated=False, allow_duplicate_gid=True, origin=None, ortho_evidence=None):
+    def add_annotation(self, gid, ref=None, cross_annotated=False, allow_duplicate_gid=True, origin=None, ortho_evidence=None):
         if not allow_duplicate_gid:
             for annotated in self.annotations:
                 if annotated.gid == gid:
                     return
-        self.annotations.add(Annotation(gid=gid, cross_annotated=cross_annotated, origin=origin, ortho_evidence=ortho_evidence))
+        self.annotations.add(Annotation(gid=gid, ref=ref, cross_annotated=cross_annotated, origin=origin, ortho_evidence=ortho_evidence))
         
     def get_annotation_size(self):
         return len(self.annotations)
