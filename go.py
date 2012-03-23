@@ -147,7 +147,7 @@ class go:
             term.annotations = set([])
             if term.summary is None:
                 term.summary = {}
-            term.summary[org] = {"direct": len(dgenes), "total": len(tgenes)}
+            term.summary[org] = {"d": len(dgenes), "t": len(tgenes)}
 
     """
     prune all gene annotations
@@ -156,6 +156,7 @@ class go:
         dterms = set()
         heads = set(self.heads)
         for (name, term) in self.go_terms.iteritems():
+            smax = max([term.summary[org]["t"] for org in term.summary.keys()])
             total = len(term.annotations)
             direct = 0
             for annotation in term.annotations:
