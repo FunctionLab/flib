@@ -133,6 +133,23 @@ class go:
             gterm.annotations = gterm.annotations | new_annotations
 
     """
+    summarize gene annotations for an organism (i.e. to load multiple organisms for output of annotation numbers to json)
+    """
+    def summarize(self, org):
+        for (name, term) in self.go_terms.iteritems():
+            tgenes = set()
+            dgenes = set()
+            for annotation in term.annotations:
+                tgenes.add(annotation.gid)
+                if annotation.direct:
+                    dgenes.add(annotation.gid)
+                del annotation
+            term.annotations = set([])
+            if term.summary is None:
+                term.summary = {}
+            term.summary[org] = {"direct": len(dgenes), "total": len(tgenes)}
+
+    """
     prune all gene annotations
     """
     def prune(self, eval_str):
@@ -287,19 +304,23 @@ class go:
         f.close()
 
     def dictify(self, term, thedict):
-        direct = 0
-        total = len(term.annotations)
-        for annotation in term.annotations:
-            if annotation.direct:
-                direct += 1
+        if not term.summary:
+            direct = 0
+            total = len(term.annotations)
+            for annotation in term.annotations:
+                if annotation.direct:
+                    direct += 1
         child_vals = []
         for child in term.parent_of:
             cdict = {}
             self.dictify(child, cdict)
             child_vals.append(cdict)
         thedict["name"] = term.name
-        thedict["direct"] = direct
-        thedict["total"] = total
+        if not term.summary:
+            thedict["direct"] = direct
+            thedict["total"] = total
+        else:
+            thedict["summary"] = term.summary
         if child_vals:
             thedict["children"] = child_vals
         return
@@ -620,6 +641,7 @@ class GOTerm:
     name = None
     base_counts = None
     counts = None
+    summary = None
 
     def __init__(self, go_id):
         self.head = True
