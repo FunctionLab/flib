@@ -163,7 +163,6 @@ class go:
                 if annotation.direct:
                     direct += 1
             if term in heads:
-                print("Head term " + name)
                 continue
             if eval(eval_str):
                 for pterm in term.child_of:
@@ -254,36 +253,6 @@ class go:
                     print >> f, term.go_id + '\t' + annotation.gid
         f.close()
 
-
-    def dictify(self, term, thedict):
-        direct = 0
-        total = len(term.annotations)
-        for annotation in term.annotations:
-            if annotation.direct:
-                direct += 1
-        child_vals = []
-        for child in term.parent_of:
-            cdict = {}
-            self.dictify(child, cdict)
-            child_vals.append(cdict)
-        thedict["name"] = term.name
-        thedict["direct"] = direct
-        thedict["total"] = total
-        if child_vals:
-            thedict["children"] = child_vals
-        return
-
-    def to_json(self):
-        """
-        Return the hierarchy for all nodes with more than min genes
-        as a json string (depends on simplejson).
-        """
-        import simplejson
-        redict = {}
-        for head in self.heads:
-            self.dictify(head, redict)
-        return 'var ontology = ' + simplejson.dumps(redict, indent=2)
-
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
         logger.info('print_refids')
@@ -303,6 +272,21 @@ class go:
             for gene in term.cross_annotated_genes:
                 print >> f, gene + '\t' + term.go_id
         f.close()
+
+    def to_json(self, head_id = None):
+        """
+        Return the hierarchy for all nodes with more than min genes
+        as a json string (depends on simplejson).
+        """
+        import simplejson
+        redict = {}
+        if head_id is not None:
+            head = self.go_terms[head_id]
+            self.dictify(head, redict) 
+        else:
+            for head in self.heads:
+                self.dictify(head, redict)
+        return 'var ontology = ' + simplejson.dumps(redict, indent=2)
 
     def dictify(self, term, thedict):
         if not term.summary:
@@ -325,17 +309,6 @@ class go:
         if child_vals:
             thedict["children"] = child_vals
         return
-
-    def to_json(self):
-        """
-        Return the hierarchy for all nodes with more than min genes
-        as a json string (depends on simplejson).
-        """
-        import simplejson
-        redict = {}
-        for head in self.heads:
-            self.dictify(head, redict)
-        return 'var ontology = ' + simplejson.dumps(redict, indent=2)
 
     def map_genes(self, id_name):
         for go_term in self.go_terms.itervalues():
