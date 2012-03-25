@@ -148,6 +148,18 @@ class go:
             if term.summary is None:
                 term.summary = {}
             term.summary[org] = {"d": len(dgenes), "t": len(tgenes)}
+    
+    """
+    add "sstr" to summary for term based on whether the term is in sset
+    """
+    def summarize_flag(self, sset, sstr):
+        for item in sset:
+            try:
+                tid = self.alt_id2std_id[item]
+            except KeyError:
+                tid = item
+            term = self.go_terms[tid]
+            term.summary[sstr] = True
 
     """
     prune all gene annotations
