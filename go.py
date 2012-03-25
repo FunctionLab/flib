@@ -25,6 +25,7 @@ class go:
         self.go_terms = {}
         self.alt_id2std_id = {}
         self.populated = False
+        self.s_orgs = []
 
         f = open(obo_file, 'r')
         inside = False
