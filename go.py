@@ -137,7 +137,7 @@ class go:
     summarize gene annotations for an organism (i.e. to load multiple organisms for output of annotation numbers to json)
     """
     def summarize(self, org):
-        s_orgs.append(org)
+        self.s_orgs.append(org)
         for (name, term) in self.go_terms.iteritems():
             tgenes = set()
             dgenes = set()
