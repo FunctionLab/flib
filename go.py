@@ -12,6 +12,7 @@ class go:
     go_terms = None
     alt_id2std_id = None
     populated = None
+    s_orgs = None
 
     # populate this field if you want to mark this GO as organism specific
     go_organism_tax_id = None
@@ -136,6 +137,7 @@ class go:
     summarize gene annotations for an organism (i.e. to load multiple organisms for output of annotation numbers to json)
     """
     def summarize(self, org):
+        s_orgs.append(org)
         for (name, term) in self.go_terms.iteritems():
             tgenes = set()
             dgenes = set()
@@ -158,8 +160,12 @@ class go:
                 tid = self.alt_id2std_id[item]
             except KeyError:
                 tid = item
-            term = self.go_terms[tid]
-            term.summary[sstr] = True
+            try:
+                term = self.go_terms[tid]
+                term.summary[sstr] = True
+            except KeyError:
+                import sys
+                sys.stderr.write(tid + '\n')
 
     """
     prune all gene annotations
@@ -168,8 +174,8 @@ class go:
         dterms = set()
         heads = set(self.heads)
         for (name, term) in self.go_terms.iteritems():
-            dmax = max([term.summary[org]["d"] for org in term.summary.keys()])
-            tmax = max([term.summary[org]["t"] for org in term.summary.keys()])
+            dmax = max([term.summary[org]["d"] for org in self.s_orgs])
+            tmax = max([term.summary[org]["t"] for org in self.s_orgs])
     
             if 'max' not in term.summary:
                 term.summary['max'] = {}
