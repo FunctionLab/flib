@@ -158,6 +158,12 @@ class go:
         for (name, term) in self.go_terms.iteritems():
             dmax = max([term.summary[org]["d"] for org in term.summary.keys()])
             tmax = max([term.summary[org]["t"] for org in term.summary.keys()])
+    
+            if 'max' not in term.summary:
+                term.summary['max'] = {}
+            term.summary['max']['d'] = dmax
+            term.summary['max']['t'] = tmax
+
             total = len(term.annotations)
             direct = 0
             nparents = len(term.child_of)
