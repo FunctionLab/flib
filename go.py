@@ -169,15 +169,15 @@ class go:
                 sys.stderr.write(tid + '\n')
 
     """
-    prune all gene annotations
+    prune all gene annotations, if nstr is passed, instead of pruning, add a flag to summary of "namestr" if the node meets these criteria.
     """
-    def prune(self, eval_str):
+    def prune(self, eval_str, nstr=None):
         dterms = set()
         heads = set(self.heads)
         for (name, term) in self.go_terms.iteritems():
             dmax = max([term.summary[org]["d"] for org in self.s_orgs])
             tmax = max([term.summary[org]["t"] for org in self.s_orgs])
-    
+
             if 'max' not in term.summary:
                 term.summary['max'] = {}
             term.summary['max']['d'] = dmax
@@ -191,7 +191,18 @@ class go:
                     direct += 1
             if term in heads:
                 continue
-            if eval(eval_str):
+            prune = eval(eval_str)
+            if nstr and prune:
+                term.summary[nstr] = True
+            elif prune:
+                if term.summary is not None:
+                    try:
+                        sstatus = term.summary['slim']
+                        if sstatus:
+                            import sys
+                            sys.stderr.write("Pruned slim term: (" + term.go_id + ") " + term.name + "\n")
+                    except KeyError:
+                        pass
                 for pterm in term.child_of:
                     pterm.parent_of.update(term.parent_of)
                     pterm.parent_of.discard(term)
