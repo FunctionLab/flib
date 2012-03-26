@@ -177,7 +177,7 @@ class go:
         for (name, term) in self.go_terms.iteritems():
             dmax = max([term.summary[org]["d"] for org in self.s_orgs])
             tmax = max([term.summary[org]["t"] for org in self.s_orgs])
-    		num_children = len(term.parent_of)
+            num_children = len(term.parent_of)
     		
             if 'max' not in term.summary:
                 term.summary['max'] = {}
