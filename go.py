@@ -200,7 +200,7 @@ class go:
                         sstatus = term.summary['slim']
                         if sstatus:
                             import sys
-                            sys.stderr.write("Pruned slim term: (" + term.go_id + ") " + term.name + "\n")
+                            sys.stderr.write("Pruned slim term: (" + term.go_id + ") " + term.name + "\t" + str(term.summary) + "\n")
                     except KeyError:
                         pass
                 for pterm in term.child_of:
