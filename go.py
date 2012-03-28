@@ -62,6 +62,8 @@ class go:
                 gterm.name = name
             elif inside and fields[0] == 'namespace:':
                 gterm.namespace = fields[1]
+            elif inside and fields[0] == 'def:':
+                gterm.desc = ' '.join(fields[1:]).split('\"')[1]
             elif inside and fields[0] == 'alt_id:':
                 gterm.alt_id.append(fields[1])
                 self.alt_id2std_id[fields[1]] = gterm.get_id()
@@ -182,6 +184,12 @@ class go:
                 term.summary['max'] = {}
             term.summary['max']['d'] = dmax
             term.summary['max']['t'] = tmax
+
+            if 'desc' not in term.summary:
+                term.summary['desc'] = term.desc
+
+            if 'goid' not in term.summary:
+                term.summary['goid'] = term.go_id
 
             total = len(term.annotations)
             direct = 0
@@ -654,6 +662,7 @@ class GOTerm:
     base_counts = None
     counts = None
     summary = None
+    desc = None
 
     def __init__(self, go_id):
         self.head = True
@@ -671,6 +680,7 @@ class GOTerm:
         self.name = None
         self.base_counts = None
         self.counts = None
+        self.desc = None
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
