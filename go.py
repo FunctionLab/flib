@@ -151,6 +151,9 @@ class go:
             if term.summary is None:
                 term.summary = {}
             term.summary[org] = {"d": len(dgenes), "t": len(tgenes)}
+            term.summary['nparents'] = len(term.child_of)
+            term.summary['go_id'] = term.go_id
+
     
     """
     add "sstr" to summary for term based on whether the term is in sset
@@ -177,7 +180,12 @@ class go:
         for (name, term) in self.go_terms.iteritems():
             dmax = max([term.summary[org]["d"] for org in self.s_orgs])
             tmax = max([term.summary[org]["t"] for org in self.s_orgs])
+            #print term.name
+            #for annotation in term.annotations :
+            #    print annotation.ref
 
+            #continue
+			
             if 'max' not in term.summary:
                 term.summary['max'] = {}
             term.summary['max']['d'] = dmax
