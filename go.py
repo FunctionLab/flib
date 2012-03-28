@@ -178,6 +178,15 @@ class go:
             dmax = max([term.summary[org]["d"] for org in self.s_orgs])
             tmax = max([term.summary[org]["t"] for org in self.s_orgs])
             num_children = len(term.parent_of)
+            
+            #refs = set([])
+            #for annotation in term.annotations:
+            	#print annotation.ref
+                #refs.add(annotation.ref)
+            
+            
+            #print term.name+"\t"+str(num_children)+"\t"+str(dmax)+"\t"+str(tmax)+"\t"+str(len(refs))
+           # continue
     		
             if 'max' not in term.summary:
                 term.summary['max'] = {}
