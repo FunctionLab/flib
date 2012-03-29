@@ -153,6 +153,8 @@ class go:
             if term.summary is None:
                 term.summary = {}
             term.summary[org] = {"d": len(dgenes), "t": len(tgenes)}
+            term.summary['nparents'] = len(term.child_of)
+            term.summary['go_id'] = term.go_id
     
     """
     add "sstr" to summary for term based on whether the term is in sset
