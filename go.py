@@ -177,7 +177,7 @@ class go:
     tally votes (i.e. size of each goterm's.vote set)
     """
     def summarize_votes(self):
-        for (tid, term) in self.go_terms:
+        for (tid, term) in self.go_terms.iteritems():
             term.summary['votes'] = len(term.votes)
 
     """
@@ -195,7 +195,7 @@ class go:
                 import sys
                 sys.stderr.write(tid + '\n')
                 continue
-            term.vote_recurse(vstr)
+            self.vote_recurse(term, vstr)
 
     """
     apply votes to a node and its children
@@ -203,7 +203,7 @@ class go:
     def vote_recurse(self, term, vstr):
         for child in term.parent_of:
             self.vote_recurse(child, vstr)
-        term.vote.add('vstr')
+        term.votes.add(vstr)
 
     """
     prune all gene annotations, if nstr is passed, instead of pruning, add a flag to summary of "namestr" if the node meets these criteria.
