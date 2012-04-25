@@ -200,9 +200,9 @@ class go:
     """
     apply votes to a node and its children
     """
-    def vote_recurse(self, vstr):
+    def vote_recurse(self, term, vstr):
         for child in term.parent_of:
-            child.vote_recurse(vstr)
+            self.vote_recurse(child, vstr)
         term.vote.add('vstr')
 
     """
