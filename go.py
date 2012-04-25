@@ -174,6 +174,38 @@ class go:
                 sys.stderr.write(tid + '\n')
 
     """
+    tally votes (i.e. size of each goterm's.vote set)
+    """
+    def summarize_votes(self):
+        for (tid, term) in self.go_terms:
+            term.summary['votes'] = len(term.votes)
+
+    """
+    add a vote from a slim file to the votes set with name vstr
+    """
+    def vote(self, vset, vstr):
+        for item in vset:
+            try:
+                tid = self.alt_id2std_id[item]
+            except KeyError:
+                tid = item
+            try:
+                term = self.go_terms[tid]
+            except KeyError:
+                import sys
+                sys.stderr.write(tid + '\n')
+                continue
+            term.vote_recurse(vstr)
+
+    """
+    apply votes to a node and its children
+    """
+    def vote_recurse(self, vstr):
+        for child in term.parent_of:
+            child.vote_recurse(vstr)
+        term.vote.add('vstr')
+
+    """
     prune all gene annotations, if nstr is passed, instead of pruning, add a flag to summary of "namestr" if the node meets these criteria.
     """
     def prune(self, eval_str, nstr=None):
@@ -671,6 +703,7 @@ class GOTerm:
     counts = None
     summary = None
     desc = None
+    votes = None
 
     def __init__(self, go_id):
         self.head = True
@@ -689,6 +722,7 @@ class GOTerm:
         self.base_counts = None
         self.counts = None
         self.desc = None
+        self.votes = set([])
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
