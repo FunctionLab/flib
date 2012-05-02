@@ -206,6 +206,44 @@ class go:
         term.votes.add(vstr)
 
     """
+    write slim starting from a dfs at the term with the id root  with nvotes to ofile
+    """
+    def write_slim(self, head, nvotes, ofile):
+        root = self.go_terms[head]
+        written = set([])
+        pruned = set([])
+        self.vote_write(root, nvotes, ofile, written, pruned)
+
+        # remove terms that were pruned in another branch
+        written -= pruned
+
+        for term in written:
+            ofile.write(term.name + '\t' + term.go_id + '\n')
+    """
+    recurse for write_slim
+    """
+    def vote_write(self, term, nvotes, ofile, written, pruned):
+        if term in written or term in pruned:
+            return
+        if len(term.votes) >= nvotes:
+            written.add(term)
+            # prune descendents
+            self.pruned(term, pruned)
+        else:
+            for child in term.parent_of:
+                self.vote_write(child, nvotes, ofile, written, pruned)
+            
+
+    """
+    recurse for pruned terms 
+    """
+    def pruned(self, term, pruned):
+        for child in term.parent_of:
+            pruned.add(child)
+            self.pruned(child, pruned)
+
+
+    """
     prune all gene annotations, if nstr is passed, instead of pruning, add a flag to summary of "namestr" if the node meets these criteria.
     """
     def prune(self, eval_str, nstr=None):
