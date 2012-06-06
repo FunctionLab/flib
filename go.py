@@ -12,6 +12,7 @@ class go:
     go_terms = None
     alt_id2std_id = None
     populated = None
+    s_orgs = None
 
     # populate this field if you want to mark this GO as organism specific
     go_organism_tax_id = None
@@ -24,6 +25,7 @@ class go:
         self.go_terms = {}
         self.alt_id2std_id = {}
         self.populated = False
+        self.s_orgs = []
 
         f = open(obo_file, 'r')
         inside = False
@@ -60,6 +62,8 @@ class go:
                 gterm.name = name
             elif inside and fields[0] == 'namespace:':
                 gterm.namespace = fields[1]
+            elif inside and fields[0] == 'def:':
+                gterm.desc = ' '.join(fields[1:]).split('\"')[1]
             elif inside and fields[0] == 'alt_id:':
                 gterm.alt_id.append(fields[1])
                 self.alt_id2std_id[fields[1]] = gterm.get_id()
@@ -133,21 +137,158 @@ class go:
             gterm.annotations = gterm.annotations | new_annotations
 
     """
-    prune all gene annotations
+    summarize gene annotations for an organism (i.e. to load multiple organisms for output of annotation numbers to json)
     """
-    def prune(self, eval_str):
+    def summarize(self, org):
+        self.s_orgs.append(org)
+        for (name, term) in self.go_terms.iteritems():
+            tgenes = set()
+            dgenes = set()
+            for annotation in term.annotations:
+                tgenes.add(annotation.gid)
+                if annotation.direct:
+                    dgenes.add(annotation.gid)
+                del annotation
+            term.annotations = set([])
+            if term.summary is None:
+                term.summary = {}
+            term.summary[org] = {"d": len(dgenes), "t": len(tgenes)}
+            term.summary['nparents'] = len(term.child_of)
+            term.summary['go_id'] = term.go_id
+
+    
+    """
+    add "sstr" to summary for term based on whether the term is in sset
+    """
+    def summarize_flag(self, sset, sstr):
+        for item in sset:
+            try:
+                tid = self.alt_id2std_id[item]
+            except KeyError:
+                tid = item
+            try:
+                term = self.go_terms[tid]
+                term.summary[sstr] = True
+            except KeyError:
+                import sys
+                sys.stderr.write(tid + '\n')
+
+    """
+    tally votes (i.e. size of each goterm's.vote set)
+    """
+    def summarize_votes(self):
+        for (tid, term) in self.go_terms.iteritems():
+            term.summary['votes'] = len(term.votes)
+
+    """
+    add a vote from a slim file to the votes set with name vstr
+    """
+    def vote(self, vset, vstr):
+        for item in vset:
+            try:
+                tid = self.alt_id2std_id[item]
+            except KeyError:
+                tid = item
+            try:
+                term = self.go_terms[tid]
+            except KeyError:
+                import sys
+                sys.stderr.write(tid + '\n')
+                continue
+            self.vote_recurse(term, vstr)
+
+    """
+    apply votes to a node and its children
+    """
+    def vote_recurse(self, term, vstr):
+        for child in term.parent_of:
+            self.vote_recurse(child, vstr)
+        term.votes.add(vstr)
+
+    """
+    write slim starting from a dfs at the term with the id root  with nvotes to ofile
+    """
+    def write_slim(self, head, nvotes, ofile):
+        root = self.go_terms[head]
+        written = set([])
+        pruned = set([])
+        self.vote_write(root, nvotes, ofile, written, pruned)
+
+        # remove terms that were pruned in another branch
+        written -= pruned
+
+        for term in written:
+            ofile.write(term.name + '\t' + term.go_id + '\n')
+    """
+    recurse for write_slim
+    """
+    def vote_write(self, term, nvotes, ofile, written, pruned):
+        if term in written or term in pruned:
+            return
+        if len(term.votes) >= nvotes:
+            written.add(term)
+            # prune descendents
+            self.pruned(term, pruned)
+        else:
+            for child in term.parent_of:
+                self.vote_write(child, nvotes, ofile, written, pruned)
+            
+
+    """
+    recurse for pruned terms 
+    """
+    def pruned(self, term, pruned):
+        for child in term.parent_of:
+            pruned.add(child)
+            self.pruned(child, pruned)
+
+
+    """
+    prune all gene annotations, if nstr is passed, instead of pruning, add a flag to summary of "namestr" if the node meets these criteria.
+    """
+    def prune(self, eval_str, nstr=None):
         dterms = set()
         heads = set(self.heads)
         for (name, term) in self.go_terms.iteritems():
+            dmax = max([term.summary[org]["d"] for org in self.s_orgs])
+            tmax = max([term.summary[org]["t"] for org in self.s_orgs])
+            num_children = len(term.parent_of)
+            #for annotation in term.annotations :
+            #    print annotation.ref
+
+            #continue
+			
+            if 'max' not in term.summary:
+                term.summary['max'] = {}
+            term.summary['max']['d'] = dmax
+            term.summary['max']['t'] = tmax
+
+            if 'desc' not in term.summary:
+                term.summary['desc'] = term.desc
+
+            if 'goid' not in term.summary:
+                term.summary['goid'] = term.go_id
+
             total = len(term.annotations)
             direct = 0
+            nparents = len(term.child_of)
             for annotation in term.annotations:
                 if annotation.direct:
                     direct += 1
             if term in heads:
-                print("Head term " + name)
                 continue
-            if eval(eval_str):
+            prune = eval(eval_str)
+            if nstr and prune:
+                term.summary[nstr] = True
+            elif prune:
+                if term.summary is not None:
+                    try:
+                        sstatus = term.summary['slim']
+                        if sstatus:
+                            import sys
+                            sys.stderr.write("Pruned slim term: (" + term.go_id + ") " + term.name + "\t" + str(term.summary) + "\n")
+                    except KeyError:
+                        pass
                 for pterm in term.child_of:
                     pterm.parent_of.update(term.parent_of)
                     pterm.parent_of.discard(term)
@@ -236,36 +377,6 @@ class go:
                     print >> f, term.go_id + '\t' + annotation.gid
         f.close()
 
-
-    def dictify(self, term, thedict):
-        direct = 0
-        total = len(term.annotations)
-        for annotation in term.annotations:
-            if annotation.direct:
-                direct += 1
-        child_vals = []
-        for child in term.parent_of:
-            cdict = {}
-            self.dictify(child, cdict)
-            child_vals.append(cdict)
-        thedict["name"] = term.name
-        thedict["direct"] = direct
-        thedict["total"] = total
-        if child_vals:
-            thedict["children"] = child_vals
-        return
-
-    def to_json(self):
-        """
-        Return the hierarchy for all nodes with more than min genes
-        as a json string (depends on simplejson).
-        """
-        import simplejson
-        redict = {}
-        for head in self.heads:
-            self.dictify(head, redict)
-        return 'var ontology = ' + simplejson.dumps(redict, indent=2)
-
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
         logger.info('print_refids')
@@ -286,34 +397,42 @@ class go:
                 print >> f, gene + '\t' + term.go_id
         f.close()
 
-    def dictify(self, term, thedict):
-        direct = 0
-        total = len(term.annotations)
-        for annotation in term.annotations:
-            if annotation.direct:
-                direct += 1
-        child_vals = []
-        for child in term.parent_of:
-            cdict = {}
-            self.dictify(child, cdict)
-            child_vals.append(cdict)
-        thedict["name"] = term.name
-        thedict["direct"] = direct
-        thedict["total"] = total
-        if child_vals:
-            thedict["children"] = child_vals
-        return
-
-    def to_json(self):
+    def to_json(self, head_id = None):
         """
         Return the hierarchy for all nodes with more than min genes
         as a json string (depends on simplejson).
         """
         import simplejson
         redict = {}
-        for head in self.heads:
-            self.dictify(head, redict)
+        if head_id is not None:
+            head = self.go_terms[head_id]
+            self.dictify(head, redict) 
+        else:
+            for head in self.heads:
+                self.dictify(head, redict)
         return 'var ontology = ' + simplejson.dumps(redict, indent=2)
+
+    def dictify(self, term, thedict):
+        if not term.summary:
+            direct = 0
+            total = len(term.annotations)
+            for annotation in term.annotations:
+                if annotation.direct:
+                    direct += 1
+        child_vals = []
+        for child in term.parent_of:
+            cdict = {}
+            self.dictify(child, cdict)
+            child_vals.append(cdict)
+        thedict["name"] = term.name
+        if not term.summary:
+            thedict["direct"] = direct
+            thedict["total"] = total
+        else:
+            thedict["summary"] = term.summary
+        if child_vals:
+            thedict["children"] = child_vals
+        return
 
     def map_genes(self, id_name):
         for go_term in self.go_terms.itervalues():
@@ -620,6 +739,9 @@ class GOTerm:
     name = None
     base_counts = None
     counts = None
+    summary = None
+    desc = None
+    votes = None
 
     def __init__(self, go_id):
         self.head = True
@@ -637,6 +759,8 @@ class GOTerm:
         self.name = None
         self.base_counts = None
         self.counts = None
+        self.desc = None
+        self.votes = set([])
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
