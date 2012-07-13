@@ -682,6 +682,16 @@ class go:
 
         return parent_terms
 
+    """
+    Return a set of leaf terms in ontology
+    """
+    def get_leaves(self, namespace='biological_process', min_annot=10):
+        leaves = set()
+        bottom = set()
+        for term in self.go_terms.values():
+            if len(term.parent_of) == 0 and term.namespace == namespace and len(term.annotations) >= min_annot:
+                leaves.add(term)
+        return leaves
 
 
 
@@ -831,6 +841,7 @@ if __name__ == '__main__':
     parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
     parser.add_option("-j", "--json-file", dest="json", help="file to output ontology (as json) to.")
     parser.add_option("-A", dest="assoc_format", action="store_true", help="If we are printing to a file (-f), pass this to get a full association file back.")
+    parser.add_option("-l", dest="desc", action="store_true", help="Get descendents of terms")
     (options, args) = parser.parse_args()
 
     if options.obo is None:
@@ -839,7 +850,7 @@ if __name__ == '__main__':
     if options.check_fringe is None and options.ass is None:
         sys.stderr.write("--association file is required.\n")
         sys.exit()
-    if options.check_fringe is None and options.opref is None and not options.refids:
+    if options.desc is None and options.check_fringe is None and options.opref is None and not options.refids:
         sys.stderr.write("--prefix is required.\n")
         sys.exit()
     if options.check_fringe and options.slim is None:
@@ -885,6 +896,17 @@ if __name__ == '__main__':
             fields = line.rstrip('\n').split('\t')
             gterms.append(fields[1])
         f.close()
+
+        if options.desc:
+            desc_terms = set()
+            for term in gterms:
+                desc_terms |= gene_ontology.get_descendents(term)
+                desc_terms.add(term)
+            for term in desc_terms:
+                if term in gene_ontology.go_terms:
+                    term = gene_ontology.go_terms[term]
+                    print term.name, term.go_id
+            sys.exit(0)
 
         # should I only print ref IDs?
         if options.refids:

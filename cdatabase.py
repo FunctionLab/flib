@@ -64,6 +64,7 @@ class CDatabase:
             zf.close()
 
         sum_genes = 0
+
         """
         Load genes for each CDatabaselet
         """
@@ -223,8 +224,14 @@ if __name__ == '__main__':
             tok = l.strip().split('\t')
             dset_ids.append((int(tok[0])-1, tok[1], tok[2]))
 
+        quants = None
+        if options.quant_file:
+            quants = open(options.quant_file).readline().strip().split()
+            print quants
+            quants = [float(x) for x in quants]
 
-        cdb = CDatabase(options.cdb, dset_ids, gene_ids, None, not options.byte)
+
+        cdb = CDatabase(options.cdb, dset_ids, gene_ids, None, not options.byte, quants)
 
         if options.gene1 and options.gene2:
             values = cdb.get_genepair_values(options.gene1, options.gene2)

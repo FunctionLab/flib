@@ -4,13 +4,17 @@ logger = logging.getLogger(__name__)
 import sys
 import numpy
 import copy
+import math
 from cdatabase import CDatabase
 
 class Counter:
 
 
-    def __init__(self, cdata):
+    def __init__(self, cdata, quants=None):
         self.cdata = cdata
+
+        if cdata is not None:
+            self.datasets = cdata.get_datasets()
 
         self.global_std = None
 
@@ -21,17 +25,60 @@ class Counter:
         self.neg_counts = None
 
         self.pos_pairs = None
+        self.pos_pairs_cnt = None
         self.neg_pairs = None
+        self.neg_pairs_cnt = None
 
         self.pos_cpt = None
         self.neg_cpt = None
 
         self.bin_effects = None
 
+        self.quants = quants
+
     @classmethod
-    def fromfilenames(cls, cdb_dir, didx, gidx, zeros_file):
-        cdata = CDatabase(cdb_dir, didx, gidx, zeros_file)
-        return cls(cdata)
+    def fromfilenames(cls, cdb_dir, didx, gidx, zeros_file, nibble=True, quants=None):
+        cdata = CDatabase(cdb_dir, didx, gidx, zeros_file, nibble)
+        return cls(cdata, quants)
+
+    @classmethod
+    def fromcountfile(cls, cfile):
+        cfile = open(cfile)
+        i = 0
+        counter = cls(None, None)
+        counter.datasets = []
+        counter.pos_counts = []
+        counter.neg_counts = []
+        for l in cfile:
+            toks = l.strip().split('\t')
+            if i == 0:
+                (name, dcount) = toks
+                counter.name = name
+            elif i == 1:
+                (gneg, gpos) = toks
+                counter.pos_pairs_cnt = int(gpos)
+                counter.neg_pairs_cnt = int(gneg)
+                counter.prior = float(gpos)/(float(gneg)+float(gpos))
+            elif (i+1) % 3 == 0:
+                (dname,) = toks
+                counter.datasets.append(dname)
+            elif (i+1) % 3 == 1:
+                counts = [int(x) for x in toks]
+                counter.neg_counts.append(counts)
+            elif (i+1) % 3 == 2:
+                counts = [int(x) for x in toks]
+                counter.pos_counts.append(counts)
+            i += 1
+        return counter
+
+    def quantize(self, value):
+        last = len(self.quants)-1
+        if self.quants is not None:
+            for i,q in enumerate(self.quants):
+                if q >= value or i == last:
+                    return i
+        else:
+            return value
 
     def set_global_std(self, std):
         self.global_std = std
@@ -108,8 +155,9 @@ class Counter:
                             neg_pairs.append((g, other))
 
         self.pos_pairs = pos_pairs
-        import random
-        self.neg_pairs = random.sample(neg_pairs,min(len(neg_pairs),100000))
+        self.neg_pairs = neg_pairs 
+        self.pos_pairs_cnt = len(pos_pairs)
+        self.neg_pairs_cnt = len(neg_pairs)
 
 
         logger.info('Counting positives')
@@ -135,6 +183,7 @@ class Counter:
 
         MISSING = self.cdata.missing_val()
         for (i,pair) in enumerate(gene_pairs):
+
             v = self.cdata.get_genepair_values(pair[0], pair[1])
             for d,value in enumerate(v):
                 if value == MISSING:
@@ -143,6 +192,10 @@ class Counter:
                         value = zbin
                     else:
                         continue
+
+                # Quantize if necessary
+                if self.quants is not None:
+                    value = self.quantize(value)
 
                 dsets_counts[d][value] += 1
 
@@ -198,20 +251,24 @@ class Counter:
 
 
     def get_trust(self):
-        datasets = self.cdata.get_datasets()
+        datasets = self.datasets 
         for i in range(len(datasets)):
             trust = 0.0
+            ratio = 0.0
             for j in range(len(self.pos_cpt[i])):
                 pp = self.pos_cpt[i][j]
                 pn = self.neg_cpt[i][j]
-                trust += pp-pn
-            print self.name, datasets[i], trust
-        return  
+                diff = math.fabs(pp-pn)
+                ratio += numpy.log(max(pp,pn) / min(pp,pn))
+                trust += diff
+
+            print self.name, datasets[i], trust, ratio
+        return
 
     def print_counts(self):
-        datasets = self.cdata.get_datasets()
+        datasets = self.datasets
         print('\t'.join([self.name, str(len(datasets))]))
-        print('\t'.join([str(len(self.neg_pairs)), str(len(self.pos_pairs))]))
+        print('\t'.join([str(self.neg_pairs_cnt), str(self.pos_pairs_cnt)]))
         for i,d in enumerate(datasets):
             print(d)
             print('\t'.join([str(x) for x in self.neg_counts[i]]))
@@ -228,6 +285,7 @@ if __name__ == '__main__':
         parser.add_option("-g", "--gene-file", dest="gene_file", help="File of gene names", metavar="FILE")
         parser.add_option("-c", "--context-file", dest="context_file", help="File of gene names", metavar="FILE")
         parser.add_option("-z", "--zeros-file", dest="zeros_file", help="File of gene names", metavar="FILE")
+        parser.add_option("-f", "--counts-file", dest="counts_file", help="Counts file", metavar="FILE")
         parser.add_option("-G", "--global-gold-standard", dest="gstd", help="global gold standard (CDatabase format)", metavar="FILE")
         parser.add_option("-l", "--gene1", dest="gene1", help="Query gene")
         parser.add_option("-L", "--gene2", dest="gene2", help="Query gene")
@@ -235,48 +293,59 @@ if __name__ == '__main__':
         parser.add_option("-Q", "--ctxtneg", dest="cneg", help="Use negative edges between context genes", default=True)
         parser.add_option("-j", "--bridgepos", dest="bpos", help="Use bridging positives between context and non-context genes", default=False)
         parser.add_option("-J", "--bridgeneg", dest="bneg", help="Use bridging negatives between context and non-context genes", default=True)
+        parser.add_option("-b", "--quant-file", dest="quant_file", help="File of bins for quantizing", metavar="FILE")
+        parser.add_option("-B", "--byte", dest="byte", help="Size of data values", action="store_true", default=False)
+
         (options, args) = parser.parse_args()
 
-        if options.cdb is None:
-            sys.stderr.write("--cdatabase-dir is required.\n")
-            sys.exit()
-        if options.gene_file is None:
-            sys.stderr.write("--gene-file is required.\n")
-            sys.exit()
 
-        genef = open(options.gene_file)
-        gidx = []
-        for l in genef:
-            (idx, gene) = l.strip().split()
-            gidx.append((int(idx)-1, gene))
-        genef.close()
-
-        dsf = open(options.dset)
-        didx = []
-        for l in dsf:
-            (idx, ds, bins) = l.strip().split()
-            didx.append((int(idx)-1, ds, int(bins)))
-        dsf.close()
-
-
-        counter = Counter.fromfilenames(options.cdb, didx, gidx, options.zeros_file)
-
-        gold_std = None
-        if options.gstd:
-            gold_std = CDatabase(options.gstd, [(0, 'gold_standard', 2)], gidx)
-            counter.set_global_std(gold_std)
-
-        pos = None
-        neg = None
-        if options.context_file:
-            genes_set = set()
-            for l in open(options.context_file):
-                genes_set.add(l.strip())
-            genes = list(genes_set)
-            counts = counter.learn_ctxt(options.context_file, genes, cpos=options.cpos, cneg=options.cneg, bpos=options.bpos, bneg=options.bneg)
+        if options.counts_file:
+            counter = Counter.fromcountfile(options.counts_file)
             counter.print_counts()
-            neg = counter.get_cpt()[0]
-            pos = counter.get_cpt()[1]
+        else:
+
+            if options.cdb is None:
+                sys.stderr.write("--cdatabase-dir is required.\n")
+                sys.exit()
+            if options.gene_file is None:
+                sys.stderr.write("--gene-file is required.\n")
+                sys.exit()
+
+            genef = open(options.gene_file)
+            gidx = []
+            for l in genef:
+                (idx, gene) = l.strip().split()
+                gidx.append((int(idx)-1, gene))
+            genef.close()
+
+            dsf = open(options.dset)
+            didx = []
+            for l in dsf:
+                (idx, ds, bins) = l.strip().split()
+                didx.append((int(idx)-1, ds, int(bins)))
+            dsf.close()
+
+            quants = None
+            if options.quant_file:
+                quants = open(options.quant_file).readline().strip().split()
+                quants = [float(x) for x in quants]
+
+            counter = Counter.fromfilenames(options.cdb, didx, gidx, options.zeros_file, not options.byte, quants)
+
+            gold_std = None
+            if options.gstd:
+                gold_std = CDatabase(options.gstd, [(0, 'gold_standard', 2)], gidx)
+                counter.set_global_std(gold_std)
+
+            pos = None
+            neg = None
+            if options.context_file:
+                genes_set = set()
+                for l in open(options.context_file):
+                    genes_set.add(l.strip())
+                genes = list(genes_set)
+                counts = counter.learn_ctxt(options.context_file, genes, cpos=options.cpos, cneg=options.cneg, bpos=options.bpos, bneg=options.bneg)
+                counter.get_trust()
 
         if options.gene1 and options.gene2:
             from network import Network
