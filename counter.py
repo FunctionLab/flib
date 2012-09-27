@@ -1,5 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 import sys
 import numpy
@@ -125,12 +126,13 @@ class Counter:
         genes = set(genes)
 
         dbgenes = self.global_std.get_genes()
-
+        print len(dbgenes)
         MISSING = self.global_std.missing_val()
         pos_pairs = []
         neg_pairs = []
         for g in genes:
             std = self.global_std.get_gene_values(g)
+            print len(std)
             for (i, v) in enumerate(std):
                 if v == MISSING:
                     continue
@@ -220,7 +222,6 @@ class Counter:
         neg_log = []
 
         bin_effects = [None]*len(self.pos_cpt)
-
         for i in range(len(self.pos_cpt)):
             plog = numpy.log(self.pos_cpt[i])
             nlog = numpy.log(self.neg_cpt[i])
@@ -345,13 +346,11 @@ if __name__ == '__main__':
                     genes_set.add(l.strip())
                 genes = list(genes_set)
                 counts = counter.learn_ctxt(options.context_file, genes, cpos=options.cpos, cneg=options.cneg, bpos=options.bpos, bneg=options.bneg)
-                counter.get_trust()
 
-        if options.gene1 and options.gene2:
+        if options.gene1 and not options.gene2:
             from network import Network
             net = Network.fromcounter(counter)
             qgenes = set()
             qgenes.add(options.gene1)
-
             print net.query(qgenes, .1)
 
