@@ -95,7 +95,6 @@ class CDatabase:
             cdbf.close()
             self.cdb_list.append(cdbaselet)
 
-        print self.datasets_zeros 
         """
         Master gene list
         """

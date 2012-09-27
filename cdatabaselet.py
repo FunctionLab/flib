@@ -79,23 +79,23 @@ class CDatabaselet:
         seek = self.get_gene_offset(g1)
         db_file.seek(int(seek))
 
+        total_vals = self.dataset_count * self.gene_total
+
         byte_list = array.array('B')
         if self.nibble:
-            byte_list.fromfile(db_file, (self.dataset_count + 1) * self.gene_total/2)
+            byte_list.fromfile(db_file, total_vals / 2)
         else:
-            byte_list.fromfile(db_file, self.dataset_count * self.gene_total)
+            byte_list.fromfile(db_file, total_vals)
             
-        values = []
+        values = [None]*(len(byte_list)*2)
         if self.nibble:
-            cd = 0 #cur dataset
-            for b in byte_list:
-                values.append( b & 0x0F )
-                if cd + 1 < self.dataset_count:
-                    values.append( b >> 4 )
-                if cd + 2 >= self.dataset_count:
-                    cd = 0
-                else:
-                    cd += 2
+            for (i,b) in enumerate(byte_list):
+                idx = i*2
+                values[idx] = ( b & 0x0F )
+                values[idx+1] = ( b >> 4 )
+            if total_vals % 2 == 1:
+                b = struct.unpack('B', db_file.read(1))
+                values.append(b[0] & 0x0F)
 
         else:
             values = byte_list
