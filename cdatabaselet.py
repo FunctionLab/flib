@@ -84,7 +84,7 @@ class CDatabaselet:
             byte_list.fromfile(db_file, (self.dataset_count + 1) * self.gene_total/2)
         else:
             byte_list.fromfile(db_file, self.dataset_count * self.gene_total)
-
+            
         values = []
         if self.nibble:
             cd = 0 #cur dataset
@@ -92,10 +92,11 @@ class CDatabaselet:
                 values.append( b & 0x0F )
                 if cd + 1 < self.dataset_count:
                     values.append( b >> 4 )
-                if cd + 2 > self.dataset_count:
+                if cd + 2 >= self.dataset_count:
                     cd = 0
                 else:
                     cd += 2
+
         else:
             values = byte_list
 

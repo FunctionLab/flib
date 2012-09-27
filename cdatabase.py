@@ -95,6 +95,7 @@ class CDatabase:
             cdbf.close()
             self.cdb_list.append(cdbaselet)
 
+        print self.datasets_zeros 
         """
         Master gene list
         """
@@ -222,20 +223,24 @@ if __name__ == '__main__':
         dset_ids = []
         for l in open(options.dset):
             tok = l.strip().split('\t')
-            dset_ids.append((int(tok[0])-1, tok[1], tok[2]))
+            dset_ids.append((int(tok[0])-1, tok[1], int(tok[2])))
 
-        quants = None
-        if options.quant_file:
-            quants = open(options.quant_file).readline().strip().split()
-            print quants
-            quants = [float(x) for x in quants]
+        #quants = None
+        #if options.quant_file:
+        #    quants = open(options.quant_file).readline().strip().split()
+        #    print quants
+        #    quants = [float(x) for x in quants]
 
 
-        cdb = CDatabase(options.cdb, dset_ids, gene_ids, None, not options.byte, quants)
+        cdb = CDatabase(options.cdb, dset_ids, gene_ids, None, not options.byte)
 
         if options.gene1 and options.gene2:
             values = cdb.get_genepair_values(options.gene1, options.gene2)
             print(values)
+            print(cdb.datasets)
+        elif options.gene1:
+            values = cdb.get_gene_values(options.gene1)
+            print(values[len(cdb.datasets):2*len(cdb.datasets)])
             print(cdb.datasets)
         else:
             for g in cdb.cdb_list[0].genes:
