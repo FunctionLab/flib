@@ -121,6 +121,12 @@ class Counter:
     def get_cpt(self):
         return (self.neg_cpt, self.pos_cpt)
 
+    def get_name(self):
+        return self.name
+
+    def get_datasets(self):
+        return self.datasets[:]
+
     def get_bridge_negs(self, genes):
         if self.global_std is None:
             return None
