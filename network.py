@@ -15,6 +15,7 @@ class Network:
         self.datasets = cdata.get_datasets()
         self.prior = prior
         self.MISSING = cdata.missing_val()
+        self.logprior = numpy.log((1.0-self.prior)/self.prior)
 
     @classmethod
     def fromcounter(cls, counter):
@@ -30,6 +31,7 @@ class Network:
             if b == self.MISSING:
                 continue
             logratio += self.bineffects[i][b]
+        logratio += self.logprior
         return self.to_posterior(logratio)
 
     """
@@ -43,13 +45,13 @@ class Network:
     Convenience method converting PR(d|^FR)/PR(d|FR) to PR(FR|D)
     """
     def to_posterior(self, logratio):
-        ratio = numpy.exp(logratio)*((1.0-self.prior)/self.prior)
+        ratio = numpy.exp(logratio)
         return 1.0/(1.0+ratio)
 
     """
     Return a list of edges (as tuples) between all gene pairs in given gene set
     """
-    def get_edges(self, genes, edge_weight = 0):
+    def get_edges(self, genes, edge_weight = 0, cache = None):
         genes_list = list(genes)
         edges = []
         for i in range(len(genes_list)):
@@ -82,15 +84,21 @@ class Network:
     graphle algorithm
     """
     def query(self, qgenes, edge_weight = 0, node_size = 50):
+        import time
+        t1 = time.time()
+
         datasize = len(self.bineffects)
-        prior_ratio = (1.0-self.prior)/self.prior
+        edge_weight_log = numpy.log((1.0/edge_weight)-1)
 
         gene_degree = {}
         for gene in qgenes:
             # Get all dataset values for gene
             values = self.cdata.get_gene_values(gene)
-
             for (i,g) in enumerate(self.genes):
+
+                if not g:
+                    continue
+
                 gene_offset = i * datasize
                 logratio = 0.0
                 for (j, bins) in enumerate(self.bineffects):
@@ -98,19 +106,20 @@ class Network:
                     if v == self.MISSING: # or use zeros bins?
                         continue
                     logratio += bins[v]
-
-                ratio = numpy.exp(logratio)*prior_ratio
-                posterior = 1.0/(1.0+ratio)
+                logratio += self.logprior
 
                 # Filter edges by edge_weight
-                # Potential speed up - convert edge_weight to logratio, filter before converting to posterior?
-                if edge_weight > posterior:
+                if edge_weight_log < logratio:
                     continue
+
+                ratio = numpy.exp(logratio)
+                posterior = 1.0/(1.0+ratio)
 
                 if g not in qgenes:
                     if g not in gene_degree:
                         gene_degree[g] = 0.0
                     gene_degree[g] += posterior
+
 
         gene_sort = sorted(gene_degree.iteritems(), key=operator.itemgetter(1), reverse=True)
         genes = set()
@@ -119,4 +128,18 @@ class Network:
             genes.add(gene_sort[i][0])
 
         edges = self.get_edges(genes, edge_weight)
-        return edges
+
+        result = {}
+        result['genes'] = []
+        result['edges'] = []
+        g_dict = {}
+        for (i,g) in enumerate(genes):
+            result['genes'].append({'query': g in qgenes, 'id' : g})
+            g_dict[g] = i
+        for (g1, g2, w) in edges:
+            result['edges'].append({'source' : g_dict[g1], 'target' : g_dict[g2], \
+                'weight' : w})
+
+        t2 = time.time()
+        print t2-t1
+        return result
