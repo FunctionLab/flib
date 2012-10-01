@@ -87,8 +87,8 @@ class CDatabaselet:
         else:
             byte_list.fromfile(db_file, total_vals)
             
-        values = [None]*(len(byte_list)*2)
         if self.nibble:
+            values = [None]*(len(byte_list)*2)
             for (i,b) in enumerate(byte_list):
                 idx = i*2
                 values[idx] = ( b & 0x0F )
