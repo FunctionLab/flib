@@ -36,7 +36,7 @@ class BNServer:
         size = struct.pack('<i', (len(genes)+1)*4 + 1)
         s.send(size)
 
-        opcode = struct.pack('<b', 0)
+        opcode = struct.pack('<b', self.INFERENCE)
         s.send(opcode)
 
         contextid = struct.pack('<i', context)
@@ -46,11 +46,9 @@ class BNServer:
         s.send(gene)
         s.shutdown(socket.SHUT_WR)
 
-        for g in genes:
+        for gid in genes:
             result = s.recv(4)
             res_len = struct.unpack('<i', result)[0]
-            print res_len
-
 
             result = None
             result = s.recv(res_len)
@@ -58,7 +56,8 @@ class BNServer:
                 result += s.recv(res_len)
             res_list = struct.unpack('f'*(res_len/4), result)
 
-            results[str(g)] = list(res_list[0:5])
+            res_list = list(res_list)
+            results[gid] = res_list
             #print len(res_list), len(res_list)/float(len(self.gidx))
 
         s.close()
