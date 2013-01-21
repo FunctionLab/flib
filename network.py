@@ -86,6 +86,7 @@ class Network:
     def query(self, qgenes, edge_weight = 0, node_size = 50):
         import time
         t1 = time.time()
+    
 
         datasize = len(self.bineffects)
         edge_weight_log = numpy.log((1.0/edge_weight)-1)
@@ -94,19 +95,22 @@ class Network:
         for gene in qgenes:
             # Get all dataset values for gene
             values = self.cdata.get_gene_values(gene)
+
+            t2 = time.time()
+            print t2-t1
+
             for (i,g) in enumerate(self.genes):
 
                 if not g:
                     continue
 
                 gene_offset = i * datasize
-                logratio = 0.0
+                logratio = numpy.float64(self.logprior)
                 for (j, bins) in enumerate(self.bineffects):
                     v = values[ gene_offset + j ]
                     if v == self.MISSING: # or use zeros bins?
                         continue
                     logratio += bins[v]
-                logratio += self.logprior
 
                 # Filter edges by edge_weight
                 if edge_weight_log < logratio:
@@ -119,6 +123,12 @@ class Network:
                     if g not in gene_degree:
                         gene_degree[g] = 0.0
                     gene_degree[g] += posterior
+
+
+            t3 = time.time()
+            print t3-t2
+
+
 
 
         gene_sort = sorted(gene_degree.iteritems(), key=operator.itemgetter(1), reverse=True)
@@ -140,6 +150,6 @@ class Network:
             result['edges'].append({'source' : g_dict[g1], 'target' : g_dict[g2], \
                 'weight' : w})
 
-        t2 = time.time()
-        print t2-t1
+        t4 = time.time()
+        print t4-t3
         return result
