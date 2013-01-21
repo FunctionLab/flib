@@ -387,5 +387,5 @@ if __name__ == '__main__':
         from network import Network
         net = Network.fromcounter(counter)
 
-        print net.query(qgenes, .1)
+        net.query(qgenes, .5)
 
