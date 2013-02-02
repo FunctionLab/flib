@@ -95,7 +95,7 @@ def predict(job, job_name, counter, data, working, genome, zeros, contexts, cont
     return predict_jobs
 
 #DChecker Wrapper
-def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, depends=None):
+def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, extra_params, depends=None):
     job.set_depends(depends[:])
     dcheck_jobs = []
     #run global dcheck
@@ -332,7 +332,7 @@ if options.predict:
     depend_jobs = predict(job, 'all', binaries['Counter'], options.data, os.path.join(options.workdir, 'all'), options.genome, options.zeros, contexts, options.contdir, options.threads, depends=depend_jobs)
 
 if options.dcheck:
-    depend_jobs = dcheck(job, 'all', None, binaries['DChecker'], os.path.join(options.workdir, 'all'), contexts, options.contdir, depends=depend_jobs)
+    depend_jobs = dcheck(job, 'all', None, binaries['DChecker'], os.path.join(options.workdir, 'all'), contexts, options.contdir, options.extra, depends=depend_jobs)
 
 for interval in intervals:
     job_name = 'cv' + str(interval)
@@ -347,7 +347,7 @@ for interval in intervals:
         depend_jobs = predict(job, job_name, binaries['Counter'], options.data, os.path.join(options.workdir, str(interval)), options.genome, options.zeros, contexts, options.contdir, options.threads, depends=depend_jobs)
 
     if options.dcheck:
-        depend_jobs = dcheck(job, job_name, holdout, binaries['DChecker'], os.path.join(options.workdir, str(interval)), contexts, options.contdir, depends=depend_jobs)
+        depend_jobs = dcheck(job, job_name, holdout, binaries['DChecker'], os.path.join(options.workdir, str(interval)), contexts, options.contdir, options.extra, depends=depend_jobs)
 
 
 
