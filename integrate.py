@@ -50,7 +50,8 @@ def learn(job, job_name, holdout, counter, answers, data, working, zeros, extra_
 
 #Counter Networks
 def networks(job, job_name, counter, data, working, alphas, pseudo, contdir, depends=None):
-    job.set_depends(depends[:])
+    if depends is not None:
+        job.set_depends(depends[:])
     os.system("ls " + data + "/*dab | perl -pe 's/.*\/(.*)\.q?dab/$.\t$+/' > " + working + "/datasets.txt")
     #Make networks.bin file
     cmdline = counter + " -k " + working + '/counts/ -o ' + working + '/networks.bin -s ' + working + '/datasets.txt -b ' + working + '/global.txt'
@@ -67,7 +68,8 @@ def networks(job, job_name, counter, data, working, alphas, pseudo, contdir, dep
 
 #Counter Predict
 def predict(job, job_name, counter, data, working, genome, zeros, contexts, contdir, threads, depends=None):
-    job.set_depends(depends[:])
+    if depends is not None:
+        job.set_depends(depends[:])
     predict_jobs = []
     #Make global predictions
     try:
@@ -95,7 +97,8 @@ def predict(job, job_name, counter, data, working, genome, zeros, contexts, cont
 
 #DChecker Wrapper
 def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, extra_params, depends=None):
-    job.set_depends(depends[:])
+    if depends is not None:
+        job.set_depends(depends[:])
     dcheck_jobs = []
     #run global dcheck
     try:
@@ -105,9 +108,9 @@ def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, extra_p
     for context in contexts:
         job_cmd = dchecker + ' -i ' + working + '/predictions/' + context + '.dab -l ' + contdir + '/' + context
         if holdout is not None:
-            cmdline += ' -g ' + holdout
+            job_cmd += ' -g ' + holdout
         if extra_params is not None:
-            cmdline += ' ' + extra_params + ' '
+            job_cmd += ' ' + extra_params + ' '
         job_cmd += ' > ' + working + '/dcheck/' + context + '.auc'
         job.set_name_command(job_name + '-DChk-' + str(context), job_cmd)
         dcheck_jobs.append(job.submit(os.path.join(working, 'Dchk-' + context)))
