@@ -20,6 +20,7 @@ def learn(job, job_name, holdout, counter, answers, data, working, zeros, extra_
         cmdline += ' -G ' + holdout
     job.set_name_command(job_name + '-GlobalLearn', cmdline)
     learn_jobs.append(job.submit(working + '/GlobalLearn.pbs'))
+    print(learn_jobs)
 
     #Make context networks
     #  helps if counts exists even w/o contexts for networks.bin
@@ -45,11 +46,12 @@ def learn(job, job_name, holdout, counter, answers, data, working, zeros, extra_
         learn_jobs.append(job.submit(working+'/CtxtLearn' + str(contexts_submitted) + '.pbs'))
         contexts_submitted += job_thds
         job.ppn = 1
+    job.set_depends(None)
     return learn_jobs
 
 #Counter Networks
 def networks(job, job_name, counter, data, working, alphas, pseudo, contdir, depends=None):
-    job.set_depends(depends)
+    job.set_depends(depends[:])
     os.system("ls " + data + "/*dab | perl -pe 's/.*\/(.*)\.q?dab/$.\t$+/' > " + working + "/datasets.txt")
     #Make networks.bin file
     cmdline = counter + " -k " + working + '/counts/ -o ' + working + '/networks.bin -s ' + working + '/datasets.txt -b ' + working + '/global.txt'
@@ -61,11 +63,12 @@ def networks(job, job_name, counter, data, working, alphas, pseudo, contdir, dep
         cmdline = cmdline + " -X " + working + "/contexts.txt"
     job.set_name_command(job_name + '-NetBin', cmdline)
     networks_job = job.submit(working+'/NetBin.pbs')
-    return networks_job
+    job.set_depends(None)
+    return [networks_job,]
 
 #Counter Predict
 def predict(job, job_name, counter, data, working, genome, zeros, contexts, contdir, threads, depends=None):
-    job.set_depends(depends)
+    job.set_depends(depends[:])
     predict_jobs = []
     #Make global predictions
     try:
@@ -88,11 +91,12 @@ def predict(job, job_name, counter, data, working, genome, zeros, contexts, cont
             predict_jobs.append(job.submit(os.path.join(working, 'CtxtLearn' + str(contexts_submitted) + '.pbs')))
             contexts_submitted += job_thds
             job.ppn = 1
+    job.set_depends(None)
     return predict_jobs
 
 #DChecker Wrapper
 def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, depends=None):
-    job.set_depends(depends)
+    job.set_depends(depends[:])
     dcheck_jobs = []
     #run global dcheck
     try:
@@ -108,6 +112,7 @@ def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, depends
         job_cmd += ' > ' + working + '/dcheck/' + context + '.auc'
         job.set_name_command(job_name + '-DChk-' + str(context), job_cmd)
         dcheck_jobs.append(job.submit(os.path.join(working, 'Dchk-' + context)))
+    job.set_depends(None)
     return dcheck_jobs
 
 #CMD LINE PROCESSING
