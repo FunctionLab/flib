@@ -20,7 +20,6 @@ def learn(job, job_name, holdout, counter, answers, data, working, zeros, extra_
         cmdline += ' -G ' + holdout
     job.set_name_command(job_name + '-GlobalLearn', cmdline)
     learn_jobs.append(job.submit(working + '/GlobalLearn.pbs'))
-    print(learn_jobs)
 
     #Make context networks
     #  helps if counts exists even w/o contexts for networks.bin
