@@ -198,7 +198,7 @@ parser.add_option("-d", "--data-directory",
                         help="Directory where data .qdabs are located.",
                         metavar="string")
 parser.add_option("-e", "--genes-file",
-                        dest="gfile",
+                        dest="genome",
                         help="Tab-delimited text file containing two " \
                         "columns, the first a one-based integer index and " \
                         "the second the unique identifier of each gene " \
@@ -312,7 +312,7 @@ if options.learn or options.network or options.predict:
         sys.stderr.write("--data-directory is required.\n")
         sys.exit()
 if options.predict:
-    if options.gfile is None:
+    if options.genome is None:
         sys.stderr.write("--genes-file is required.\n")
         sys.exit()
 
