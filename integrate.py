@@ -96,7 +96,7 @@ def predict(job, job_name, counter, data, working, genome, zeros, contexts, cont
     return predict_jobs
 
 #DChecker Wrapper
-def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, extra_params, depends=None):
+def dcheck(job, job_name, holdout, dchecker, answers, working, contexts, contdir, extra_params, depends=None):
     if depends is not None:
         job.set_depends(depends[:])
     dcheck_jobs = []
@@ -105,15 +105,19 @@ def dcheck(job, job_name, holdout, dchecker, working, contexts, contdir, extra_p
         os.mkdir(working + '/dcheck')
     except OSError:
         pass
+    #This change is because the DISCOVERY cluster at Dartmouth has trouble with large numbers of DCheck jobs. We can also make this a command array with a minor rewrite if it works better for another cluster.
+    dchecks_str = ""
     for context in contexts:
-        job_cmd = dchecker + ' -i ' + working + '/predictions/' + context + '.dab -l ' + contdir + '/' + context
+        job_cmd = dchecker + ' -w ' + answers + ' -i ' + working + '/predictions/' + context + '.dab -l ' + contdir + '/' + context
         if holdout is not None:
             job_cmd += ' -g ' + holdout
         if extra_params is not None:
             job_cmd += ' ' + extra_params + ' '
         job_cmd += ' > ' + working + '/dcheck/' + context + '.auc'
-        job.set_name_command(job_name + '-DChk-' + str(context), job_cmd)
-        dcheck_jobs.append(job.submit(os.path.join(working, 'Dchk-' + context)))
+        dchecks_str += job_cmd + '\n'
+    #nasty hack for DISCOVERY, writes all commands to one pbs script
+    job.set_name_command(job_name + '-DChk', dchecks_str)
+    dcheck_jobs.append(job.submit(os.path.join(working, 'Dchk.pbs')))
     job.set_depends(None)
     return dcheck_jobs
 
@@ -334,7 +338,7 @@ if options.predict:
     depend_jobs = predict(job, 'all', binaries['Counter'], options.data, os.path.join(options.workdir, 'all'), options.genome, options.zeros, contexts, options.contdir, options.threads, depends=depend_jobs)
 
 if options.dcheck:
-    depend_jobs = dcheck(job, 'all', None, binaries['DChecker'], os.path.join(options.workdir, 'all'), contexts, options.contdir, options.extra, depends=depend_jobs)
+    depend_jobs = dcheck(job, 'all', None, binaries['DChecker'], options.answers, os.path.join(options.workdir, 'all'), contexts, options.contdir, options.extra, depends=depend_jobs)
 
 for interval in intervals:
     job_name = 'cv' + str(interval)
@@ -349,7 +353,7 @@ for interval in intervals:
         depend_jobs = predict(job, job_name, binaries['Counter'], options.data, os.path.join(options.workdir, str(interval)), options.genome, options.zeros, contexts, options.contdir, options.threads, depends=depend_jobs)
 
     if options.dcheck:
-        depend_jobs = dcheck(job, job_name, holdout, binaries['DChecker'], os.path.join(options.workdir, str(interval)), contexts, options.contdir, options.extra, depends=depend_jobs)
+        depend_jobs = dcheck(job, job_name, holdout, binaries['DChecker'], options.answers, os.path.join(options.workdir, str(interval)), contexts, options.contdir, options.extra, depends=depend_jobs)
 
 
 
