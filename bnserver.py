@@ -13,6 +13,8 @@ from cdatabase import CDatabase
 class BNServer:
 
     INFERENCE, DATA, GRAPH, CONTEXTS = range(4)
+    OTF, EDGES = 9, 10
+
 
     def __init__(self, gidx = None, ip = '127.0.0.1', port = 1234, bin_effects = None):
         self.ip = ip
@@ -31,23 +33,14 @@ class BNServer:
         s.shutdown(socket.SHUT_WR)
         s.close()
 
-    def inference(self, genes):
-        results = {}
-
-        s = self.open_socket()
-
-        size = 1 + 4 # opcode + num. datasets
+    def get_bins_size(self):
+        size = 0
         for i in range(len(self.bin_effects)):
             bins = len(self.bin_effects[i])
             size += 4*(bins + 2) # data id + num. bins + bin log ratios
-        size += 4*len(genes)
+        return size
 
-        size = struct.pack('<i', size)
-        s.send(size)
-
-        opcode = struct.pack('<b', 9)
-        s.send(opcode)
-
+    def send_bins(self, s):
         dcount = struct.pack('<i', len(self.bin_effects))
         s.send(dcount)
         for i in range(len(self.bin_effects)):
@@ -62,6 +55,63 @@ class BNServer:
                 dmessage.append( self.bin_effects[i][j] )
             m = struct.pack('<'+'f'*len(dmessage), *dmessage)
             s.send(m)
+
+
+    def inference_edges(self, edges):
+        results = {}
+
+        s = self.open_socket()
+
+        size = 1 + 4 + 8 * len(edges) # opcode
+        size += self.get_bins_size()
+
+        print 'bin size:', (size-9)
+        print 'total size:', size
+
+        size = struct.pack('<i', size)
+        s.send(size)
+
+        opcode = struct.pack('<b', self.EDGES)
+        s.send(opcode)
+
+        self.send_bins(s)
+
+        size = struct.pack('<i', len(edges))
+        s.send(size)
+
+        for (g1, g2) in edges:
+            e = struct.pack('<ii', g1, g2)
+            s.send(e)
+
+        s.shutdown(socket.SHUT_WR)
+
+        result = s.recv(4)
+        res_len = struct.unpack('<i', result)[0]
+        result = s.recv(res_len)
+        res_list = struct.unpack('f'*(res_len/4), result)
+
+        return res_list
+
+
+    def inference_otf(self, genes):
+        results = {}
+
+        s = self.open_socket()
+
+        size = 1 + 4 # opcode + num. datasets
+        #for i in range(len(self.bin_effects)):
+        #    bins = len(self.bin_effects[i])
+        #    size += 4*(bins + 2) # data id + num. bins + bin log ratios
+        size += self.get_bins_size()
+        size += 4*len(genes)
+
+        size = struct.pack('<i', size)
+        s.send(size)
+
+        opcode = struct.pack('<b', self.OTF)
+        s.send(opcode)
+
+        self.send_bins(s)
 
         gene = struct.pack('<'+'i'*len(genes), *genes)
         s.send(gene)
@@ -84,7 +134,7 @@ class BNServer:
         s.close()
         return results
 
-    def query_network(self, genes, context = 0):
+    def inference(self, genes, context = 0):
         results = {}
 
         s = self.open_socket()
@@ -155,8 +205,10 @@ if __name__ == '__main__':
     counter = Counter.fromcountfile(options.counts_file, cdb)
 
     bns = BNServer(gidx, options.ip, options.port, counter.get_bineffects())
-    result = bns.inference([99])
+    result = bns.inference_otf([1])
     for g in result:
-        for i in range(20):
-            posterior = 1/(numpy.exp(result[g][i] + numpy.log(.99/.01)) + 1)
-            print g, (i+1), posterior, result[g][i] 
+        for i in range(1,2):
+            #posterior = 1/(numpy.exp(result[g][i] + numpy.log(.99/.01)) + 1)
+            print g, (i+1), result[g][i]
+
+    print bns.inference_edges([(2,1)])
