@@ -250,24 +250,6 @@ class go:
         dterms = set()
         heads = set(self.heads)
         for (name, term) in self.go_terms.iteritems():
-            dmax = max([term.summary[org]["d"] for org in self.s_orgs])
-            tmax = max([term.summary[org]["t"] for org in self.s_orgs])
-            num_children = len(term.parent_of)
-            #for annotation in term.annotations :
-            #    print annotation.ref
-
-            #continue
-			
-            if 'max' not in term.summary:
-                term.summary['max'] = {}
-            term.summary['max']['d'] = dmax
-            term.summary['max']['t'] = tmax
-
-            if 'desc' not in term.summary:
-                term.summary['desc'] = term.desc
-
-            if 'goid' not in term.summary:
-                term.summary['goid'] = term.go_id
 
             total = len(term.annotations)
             direct = 0
@@ -275,6 +257,25 @@ class go:
             for annotation in term.annotations:
                 if annotation.direct:
                     direct += 1
+
+            dmax = direct
+            tmax = total
+            num_children = len(term.parent_of)
+            if term.summary:
+                if self.s_orgs:
+                    dmax = max([term.summary[org]["d"] for org in self.s_orgs])
+                    tmax = max([term.summary[org]["t"] for org in self.s_orgs])
+                if 'max' not in term.summary:
+                    term.summary['max'] = {}
+                term.summary['max']['d'] = dmax
+                term.summary['max']['t'] = tmax
+
+                if 'desc' not in term.summary:
+                    term.summary['desc'] = term.desc
+
+                if 'goid' not in term.summary:
+                    term.summary['goid'] = term.go_id
+
             if term in heads:
                 continue
             prune = eval(eval_str)
