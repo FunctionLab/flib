@@ -236,7 +236,7 @@ if __name__ == '__main__':
         if options.gene1 and options.gene2:
             values = cdb.get_genepair_values(options.gene1, options.gene2)
             print(values)
-            print(cdb.datasets)
+            #print(cdb.datasets)
         elif options.gene1:
             values = cdb.get_gene_values(options.gene1)
             print(values[len(cdb.datasets):2*len(cdb.datasets)])
