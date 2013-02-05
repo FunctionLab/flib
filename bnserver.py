@@ -169,6 +169,33 @@ class BNServer:
         s.close()
         return results
 
+    def evidence(self, gene1, gene2, prior):
+        s = self.open_socket()
+
+        size = struct.pack('<i',  9)
+        s.send(size)
+
+        opcode = struct.pack('<b', self.DATA)
+        s.send(opcode)
+
+        genes = struct.pack('<ii', gene1, gene2)
+        s.send(genes)
+        s.shutdown(socket.SHUT_WR)
+
+        res_len = struct.unpack('<i', s.recv(4))[0]
+        result = s.recv(res_len)
+        res_list = list(struct.unpack('b'*res_len, result))
+
+        logprior = numpy.log((1-prior)/prior)
+        for (i,val) in enumerate(res_list):
+            if res_list[i] != -1:
+                res_list[i] = 1/(1+numpy.exp(self.bin_effects[i][val] + logprior)) - prior
+            else:
+                res_list[i] = None
+
+        s.close()
+        return res_list
+
 if __name__ == '__main__':
     from optparse import OptionParser
 
@@ -205,10 +232,11 @@ if __name__ == '__main__':
     counter = Counter.fromcountfile(options.counts_file, cdb)
 
     bns = BNServer(gidx, options.ip, options.port, counter.get_bineffects())
-    result = bns.inference_otf([1])
-    for g in result:
-        for i in range(1,2):
+    #result = bns.inference_otf([1])
+    #for g in result:
+    #    for i in range(1,2):
             #posterior = 1/(numpy.exp(result[g][i] + numpy.log(.99/.01)) + 1)
-            print g, (i+1), result[g][i]
+    #        print g, (i+1), result[g][i]
 
-    print bns.inference_edges([(2,1)])
+    #print bns.inference_edges([(2,1)])
+    print bns.evidence(2,1,.01)
