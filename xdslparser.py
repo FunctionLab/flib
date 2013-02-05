@@ -6,6 +6,8 @@ Created on Feb 4, 2013
 
 from xml.etree import ElementTree
 import sys
+import numpy
+
 def isodd(num):
     return num & 1 and True or False
 
@@ -46,8 +48,8 @@ class CptNodesHolder:
                                     node.parents.append(child.text)
                                 elif child.tag == 'probabilities':                                    
                                     vals = self._parse_probabilities(child.text)
-                                    node.pos_probabilities = vals[0]
-                                    node.neg_probabilities = vals[1]
+                                    node.neg_probabilities = vals[0]
+                                    node.pos_probabilities = vals[1]
                             self.nodes[node_id] = node
                             del node
         except IOError:
@@ -106,7 +108,17 @@ class CptNode:
         return self.__str__()          
 
     def get_probabilities(self):
-        return [self.pos_probabilities,self.neg_probabilities]
+        return [self.neg_probabilities,self.pos_probabilities]
+
+    def get_logratios(self):
+        bineffects = []
+        for (pneg, ppos) in zip(self.neg_probabilities, self.pos_probabilities):
+            if ppos == 0 or pneg == 0:
+                bineffects.append(0)
+            else:
+                bineffects.append(numpy.log(pneg/ppos))
+
+        return bineffects
 
 
 if __name__ == '__main__':
@@ -134,6 +146,7 @@ if __name__ == '__main__':
     if 'biogrid' in nodes.get_nodes_ids():
         node = nodes.get_node('biogrid')
         print node
+        print node.get_logratios()
         print 'Probabilities for biogrid: %s' % nodes.get_probabilities('biogrid')
         
     
