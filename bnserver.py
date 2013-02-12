@@ -238,5 +238,5 @@ if __name__ == '__main__':
             #posterior = 1/(numpy.exp(result[g][i] + numpy.log(.99/.01)) + 1)
     #        print g, (i+1), result[g][i]
 
-    #print bns.inference_edges([(2,1)])
-    print bns.evidence(2,1,.01)
+    print bns.inference_edges([(2,1)])
+    #print bns.evidence(2,1,.01)
