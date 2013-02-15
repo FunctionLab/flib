@@ -65,9 +65,6 @@ class BNServer:
         size = 1 + 4 + 8 * len(edges) # opcode
         size += self.get_bins_size()
 
-        print 'bin size:', (size-9)
-        print 'total size:', size
-
         size = struct.pack('<i', size)
         s.send(size)
 
