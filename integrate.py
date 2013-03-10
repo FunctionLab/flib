@@ -312,7 +312,7 @@ if options.contdir is not None:
 job = None
 if options.queue == 'discovery':
     from pbsjob import PBSJob
-    job = PBSJob(addr=options.email, command="echo test", walltime="23:59:00", queue="largeq")
+    job = PBSJob(addr=options.email, command="echo test", walltime="47:59:00", queue="largeq")
 else:
     sys.stderr.write("Unknown queue '" + options.queue + "' -- Is there an implemented job interface for this queue?")
     sys.exit()
