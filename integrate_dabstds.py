@@ -56,7 +56,7 @@ def networks(job=None, job_name=None, counter=None, data=None, working=None, alp
     return [networks_job,]
 
 #Counter Predict
-def predict(job=None, job_name=None, counter=None, data=None, working=None, genome=None, zeros=None, standards=None, threads=8, depends=None):
+def predict(job=None, job_name=None, counter=None, data=None, working=None, genome=None, zeros=None, standards=None, threads=16, depends=None):
     if depends is not None:
         job.set_depends(depends[:])
     predict_jobs = []
