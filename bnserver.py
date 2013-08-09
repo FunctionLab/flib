@@ -264,7 +264,3 @@ if __name__ == '__main__':
             #posterior = 1/(numpy.exp(result[g][i] + numpy.log(.99/.01)) + 1)
     #        print g, (i+1), result[g][i]
 
-    print bns.data(2,1)
-    print bns.data(1,2)
-    #lr = filter( lambda x: x is not None, bns.evidence(96,1,.01) )
-    #print numpy.sum(lr)
