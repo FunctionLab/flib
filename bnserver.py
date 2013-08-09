@@ -9,6 +9,7 @@ import sys
 import numpy
 from counter import Counter
 from cdatabase import CDatabase
+from xdslparser import CptNodesHolder
 
 class BNServer:
 
@@ -193,6 +194,27 @@ class BNServer:
         s.close()
         return res_list
 
+    def data(self, gene1, gene2):
+        s = self.open_socket()
+
+        size = struct.pack('<i',  9)
+        s.send(size)
+
+        opcode = struct.pack('<b', self.DATA)
+        s.send(opcode)
+
+        genes = struct.pack('<ii', gene1, gene2)
+        s.send(genes)
+        s.shutdown(socket.SHUT_WR)
+
+        res_len = struct.unpack('<i', s.recv(4))[0]
+        result = s.recv(res_len)
+        res_list = list(struct.unpack('b'*res_len, result))
+
+	s.close()
+
+        return res_list
+
 if __name__ == '__main__':
     from optparse import OptionParser
 
@@ -211,6 +233,9 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
 
+    
+    nodes = CptNodesHolder(filename=options.counts_file)
+
     genef = open(options.gene_file)
     gidx = []
     for l in genef:
@@ -218,22 +243,28 @@ if __name__ == '__main__':
         gidx.append((int(idx)-1, gene))
     genef.close()
 
+    bin_effects = []
     dsf = open(options.dset)
     didx = []
     for l in dsf:
         (idx, ds, bins) = l.strip().split()
+	node = nodes.get_node(ds)
+        bin_effects.append(node.get_logratios())
+
         didx.append((int(idx)-1, ds, int(bins)))
     dsf.close()
 
-    cdb = CDatabase(options.cdb, didx, gidx, options.zeros_file, not options.byte)
-    counter = Counter.fromcountfile(options.counts_file, cdb)
+    #cdb = CDatabase(options.cdb, didx, gidx, options.zeros_file, not options.byte)
+    #counter = Counter.fromcountfile(options.counts_file, cdb)
 
-    bns = BNServer(gidx, options.ip, options.port, counter.get_bineffects())
+    bns = BNServer(gidx, options.ip, options.port, bin_effects)
     #result = bns.inference_otf([1])
     #for g in result:
     #    for i in range(1,2):
             #posterior = 1/(numpy.exp(result[g][i] + numpy.log(.99/.01)) + 1)
     #        print g, (i+1), result[g][i]
 
-    #print bns.inference_edges([(2,1)])
-    print bns.evidence(2,1,.01)
+    print bns.data(2,1)
+    print bns.data(1,2)
+    #lr = filter( lambda x: x is not None, bns.evidence(96,1,.01) )
+    #print numpy.sum(lr)
