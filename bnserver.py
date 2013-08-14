@@ -186,10 +186,10 @@ class BNServer:
 
         logprior = numpy.log((1-prior)/prior)
         for (i,val) in enumerate(res_list):
-            if res_list[i] != -1:
-                res_list[i] = 1/(1+numpy.exp(self.bin_effects[i][val] + logprior)) - prior
+	    if len(self.bin_effects[i]) == 0 or val == -1:
+		res_list[i] = None
             else:
-                res_list[i] = None
+                res_list[i] = 1/(1+numpy.exp(self.bin_effects[i][val] + logprior)) - prior
 
         s.close()
         return res_list
@@ -247,7 +247,8 @@ if __name__ == '__main__':
     dsf = open(options.dset)
     didx = []
     for l in dsf:
-        (idx, ds, bins) = l.strip().split()
+        (idx, ds) = l.strip().split()
+	bins = 7
 	node = nodes.get_node(ds)
         bin_effects.append(node.get_logratios())
 
@@ -258,6 +259,7 @@ if __name__ == '__main__':
     #counter = Counter.fromcountfile(options.counts_file, cdb)
 
     bns = BNServer(gidx, options.ip, options.port, bin_effects)
+    print bns.evidence(1,2,.01)
     #result = bns.inference_otf([1])
     #for g in result:
     #    for i in range(1,2):
