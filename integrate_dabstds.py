@@ -9,47 +9,36 @@ binaries = { 'Counter':'Counter', 'NetworkCombiner':'NetworkCombiner', 'DChecker
 #FUNCTIONS
 #functions that call counter (3 stages)
 #Counter Learn
-def learn(job, job_name, holdout, counter, answers, data, working, zeros, extra_params, contexts, contdir, threads):
+def learn(job=None, job_name=None, global_answers=None, holdout=None, counter=None, data=None, working=None, zeros=None, standards=None, stddir=None):
     #Make global network.
     learn_jobs = []
-    cmdline = counter + ' -w ' + answers + \
-                     ' -d ' + data + \
-                     ' -o ' + working + '/' + \
-                     ' -Z ' + zeros
-    if holdout is not None:
-        cmdline += ' -G ' + holdout
-    job.set_name_command(job_name + '-GlobalLearn', cmdline)
-    learn_jobs.append(job.submit(working + '/GlobalLearn.pbs'))
-
-    #Make context networks
-    #  helps if counts exists even w/o contexts for networks.bin
     try:
         os.mkdir(working + '/counts')
     except OSError:
         pass
-    cmdline = counter + ' -w ' + answers + \
-              ' -d ' + data + \
-              ' -o ' + working + '/counts/' + \
-              ' -Z ' + zeros
-    if holdout is not None:
-        cmdline += ' -G ' + holdout
-    if extra_params is not None:
-        cmdline += ' ' + extra_params + ' '
-    contexts_submitted = 0
-    while contexts_submitted < len(contexts):
-        job_ctxts = contexts[contexts_submitted:(contexts_submitted + threads)]
-        job_thds = len(job_ctxts)
-        job_cmd = cmdline + ' -t ' + str(job_thds) + ' ' + ' '.join([contdir + '/' + context for context in job_ctxts])
-        job.ppn = job_thds
-        job.set_name_command(job_name + '-CtxtLearn', job_cmd)
-        learn_jobs.append(job.submit(working+'/CtxtLearn' + str(contexts_submitted) + '.pbs'))
-        contexts_submitted += job_thds
-        job.ppn = 1
+
+    cmdline = counter + ' -w ' + global_answers + \
+                ' -d ' + data + \
+                ' -o ' + working + '/' + \
+                ' -Z ' + zeros
+    job.set_name_command(job_name + '-global-learn', cmdline)
+    learn_jobs.append(job.submit(os.path.join(working, 'global-learn.pbs')))
+
+    for standard in standards:
+        cmdline = counter + ' -w ' + stddir + '/' + standard + '.dab' + \
+                     ' -d ' + data + \
+                     ' -o ' + working + '/counts/' + \
+                     ' -O ' + standard + \
+                     ' -Z ' + zeros
+        if holdout is not None:
+            cmdline += ' -G ' + holdout
+        job.set_name_command(job_name + '-' + standard + '-learn', cmdline)
+        learn_jobs.append(job.submit(os.path.join(working, standard + '-learn.pbs')))
     job.set_depends(None)
     return learn_jobs
 
 #Counter Networks
-def networks(job, job_name, counter, data, working, alphas, pseudo, contdir, depends=None):
+def networks(job=None, job_name=None, counter=None, data=None, working=None, alphas=None, pseudo=None, stddir=None, depends=None):
     if depends is not None:
         job.set_depends(depends[:])
     os.system("ls " + data + "/*dab | perl -pe 's/.*\/(.*)\.q?dab/$.\t$+/' > " + working + "/datasets.txt")
@@ -58,8 +47,8 @@ def networks(job, job_name, counter, data, working, alphas, pseudo, contdir, dep
     #Regularization
     if alphas is not None:
         cmdline = cmdline + " -a " + alphas + " -p " + str(pseudo)
-    if contdir is not None:
-        os.system("ls " + contdir + "/* | perl -pe 's/.*\/(.*)/$.\t$+\t$+/' > " + working + "/contexts.txt")
+    if stddir is not None:
+        os.system("ls " + stddir + "/*\.dab | perl -pe 's/.*\/(.*)\.dab/$.\t$+\t$+/' > " + working + "/contexts.txt")
         cmdline = cmdline + " -X " + working + "/contexts.txt"
     job.set_name_command(job_name + '-NetBin', cmdline)
     networks_job = job.submit(working+'/NetBin.pbs')
@@ -67,7 +56,7 @@ def networks(job, job_name, counter, data, working, alphas, pseudo, contdir, dep
     return [networks_job,]
 
 #Counter Predict
-def predict(job, job_name, counter, data, working, genome, zeros, contexts, contdir, threads, depends=None):
+def predict(job=None, job_name=None, counter=None, data=None, working=None, genome=None, zeros=None, standards=None, threads=16, depends=None):
     if depends is not None:
         job.set_depends(depends[:])
     predict_jobs = []
@@ -76,17 +65,17 @@ def predict(job, job_name, counter, data, working, genome, zeros, contexts, cont
         os.mkdir(working + '/predictions')
     except OSError:
         pass
+
     cmdline = counter + " -n " + working + '/networks.bin -s ' + working + '/datasets.txt -d ' + data + ' -e ' + genome + ' -o ' + working + '/predictions' + ' -Z ' + zeros
-    job.set_name_command(job_name + '-GlobalPred', cmdline)
-    predict_jobs.append(job.submit(os.path.join(working, 'GlobalPredict.pbs')))
+
     #run context predict
-    if contdir is not None:
+    if standards is not None:
         contexts_submitted = 0
         ctxt_jobs = []
-        while contexts_submitted < len(contexts):
-            job_ctxts = contexts[contexts_submitted:(contexts_submitted + threads)]
+        while contexts_submitted < len(standards):
+            job_ctxts = standards[contexts_submitted:(contexts_submitted + threads)]
             job_thds = len(job_ctxts)
-            job_cmd = cmdline + ' -t ' + str(job_thds) + ' ' + ' '.join([contdir + '/' + context for context in job_ctxts])
+            job_cmd = cmdline + ' -t ' + str(job_thds) + ' ' + ' '.join(job_ctxts)
             job.ppn = job_thds
             job.set_name_command(job_name + '-CtxtPred', job_cmd)
             predict_jobs.append(job.submit(os.path.join(working, 'CtxtLearn' + str(contexts_submitted) + '.pbs')))
@@ -96,23 +85,20 @@ def predict(job, job_name, counter, data, working, genome, zeros, contexts, cont
     return predict_jobs
 
 #DChecker Wrapper
-def dcheck(job, job_name, holdout, dchecker, answers, working, contexts, contdir, extra_params, depends=None):
+def dcheck(job=None, job_name=None, holdout=None, dchecker=None, answers=None, working=None, standards=None, stddir=None, depends=None):
     if depends is not None:
         job.set_depends(depends[:])
     dcheck_jobs = []
-    #run global dcheck
     try:
         os.mkdir(working + '/dcheck')
     except OSError:
         pass
     #This change is because the DISCOVERY cluster at Dartmouth has trouble with large numbers of DCheck jobs. We can also make this a command array with a minor rewrite if it works better for another cluster.
     dchecks_str = ""
-    for context in contexts:
-        job_cmd = dchecker + ' -w ' + answers + ' -i ' + working + '/predictions/' + context + '.dab -l ' + contdir + '/' + context
+    for context in standards:
+        job_cmd = dchecker + ' -w ' + os.path.join(stddir, context + '.dab') + ' -i ' + working + '/predictions/' + context + '.dab '
         if holdout is not None:
             job_cmd += ' -g ' + holdout
-        if extra_params is not None:
-            job_cmd += ' ' + extra_params + ' '
         job_cmd += ' > ' + working + '/dcheck/' + context + '.auc'
         dchecks_str += job_cmd + '\n'
     #nasty hack for DISCOVERY, writes all commands to one pbs script
@@ -152,16 +138,6 @@ parser.add_option("-K", "--dcheck",
                         action="store_true",
                         default=False)
 
-#NOT YET IMPLEMENTED IN NEW VERSION
-"""
-parser.add_option("-C", "--combiner-flag", dest = "combiner", help = "Combine " \
-            "contexts into one large network.", 
-            action="store_true", default=False)
-parser.add_option("-D", "--delete-contexts-flag", dest = "del_ctxt", 
-            help = "Delete context integrations after combinining",
-            action="store_true", default=False)
-"""
-
 #Queue details
 parser.add_option("-Q", "--queue",
                         dest="queue",
@@ -177,28 +153,12 @@ parser.add_option("-B", "--sleipnir-binaries-dir",
                         dest="sleipnir",
                         help="DIR containing sleipnir binaries. If not passed, binaries used must be available in the path.",
                         metavar="DIR")
-#How should this be run?
-parser.add_option("-T", "--threads-per",
-                        dest="threads",
-                        help="Number of threads per job",
-                        type="int",
-                        default=1,
-                        metavar="int")
-#Not used on discovery, if you guys want to enable for cetus, add back in
-"""
-parser.add_option("-M", "--memory-per-integration",
-                        dest="gb_per",
-                        type="int",
-                        default=3,
-                        help="Integer memory requirement per context integration (in GB).")
-"""
-
 
 #INTEGRATION OPTIONS
 #Choose Carefully
 parser.add_option("-a", "--answers-file",
                         dest="answers",
-                        help="FILE with gold standard relationships.",
+                        help="FILE with global gold standard relationships -- only used for gene list.",
                         metavar="FILE")
 parser.add_option("-z", "--zeros-file",
                         dest="zeros",
@@ -215,10 +175,10 @@ parser.add_option("-e", "--genes-file",
                         "the second the unique identifier of each gene " \
                         "in the genome.",
                         metavar="string")
-parser.add_option("-c", "--contexts-directory",
-                        dest="contdir",
-                        help="Directory where contexts files are located",
-                        metavar="string")
+parser.add_option("-s", "--standards-directory",
+                        dest="stddir",
+                        help="Directory where standards files are located",
+                        metavar="DIR")
 parser.add_option("-r", "--alphas-file",
                         dest="alphas",
                         help="Alphas file for bayesian regularization",
@@ -230,11 +190,6 @@ parser.add_option("-p", "--pseudo-count",
                         type="int",
                         default=1,
                         metavar="int")
-parser.add_option("-b", "--bridge-params",
-                        dest="extra",
-                        help="Extra parameters for bridging rules (e.g. -q -Q -j -J -u -U).",
-                        type="string",
-                        metavar="string")
 #Minor Details
 parser.add_option("-w", "--working-directory",
                         dest="workdir",
@@ -304,10 +259,12 @@ for interval in intervals:
     if not os.path.exists(os.path.join(options.workdir, str(interval))):
         os.mkdir(os.path.join(options.workdir, str(interval)))
 
-#find contexts
-contexts = []
-if options.contdir is not None:
-    contexts = os.listdir(options.contdir)
+#find standards
+standards = []
+potential = os.listdir(options.stddir)
+for item in potential:
+    if item.endswith('.dab'):
+        standards.append(item.split('.')[0])
 
 job = None
 if options.queue == 'discovery':
@@ -330,16 +287,15 @@ if options.predict:
 #Run non-cv
 depend_jobs = None
 if options.learn:
-    depend_jobs = learn(job, 'all', None, binaries['Counter'], options.answers, options.data, os.path.join(options.workdir, 'all'), options.zeros, options.extra, contexts, options.contdir, options.threads)
+    depend_jobs = learn(job=job, job_name='all', counter=binaries['Counter'], global_answers=options.answers, data=options.data, working=os.path.join(options.workdir, 'all'), zeros=options.zeros, standards=standards, stddir=options.stddir)
 if options.network:
-    depend_jobs = networks(job, 'all', binaries['Counter'], options.data, os.path.join(options.workdir, 'all'), options.alphas, options.pseudo, options.contdir, depends=depend_jobs)
-
+    depend_jobs = networks(job=job, job_name='all', counter=binaries['Counter'], data=options.data, working=os.path.join(options.workdir, 'all'), alphas=options.alphas, pseudo=options.pseudo, stddir=options.stddir, depends=depend_jobs)
 if options.predict:
-    depend_jobs = predict(job, 'all', binaries['Counter'], options.data, os.path.join(options.workdir, 'all'), options.genome, options.zeros, contexts, options.contdir, options.threads, depends=depend_jobs)
-
+    depend_jobs = predict(job=job, job_name='all', counter=binaries['Counter'], data=options.data, working=os.path.join(options.workdir, 'all'), genome=options.genome, zeros=options.zeros, standards=standards, depends=depend_jobs)
 if options.dcheck:
-    depend_jobs = dcheck(job, 'all', None, binaries['DChecker'], options.answers, os.path.join(options.workdir, 'all'), contexts, options.contdir, options.extra, depends=depend_jobs)
+    depend_jobs = dcheck(job=job, job_name='all', dchecker=binaries['DChecker'], answers=options.answers, working=os.path.join(options.workdir, 'all'), standards=standards, stddir=options.stddir, depends=depend_jobs)
 
+"""
 for interval in intervals:
     job_name = 'cv' + str(interval)
     holdout = os.path.join(int_dir, str(interval) + '.txt')
@@ -355,23 +311,4 @@ for interval in intervals:
     if options.dcheck:
         depend_jobs = dcheck(job, job_name, holdout, binaries['DChecker'], options.answers, os.path.join(options.workdir, str(interval)), contexts, options.contdir, options.extra, depends=depend_jobs)
 
-
-
-"""
-"""
-
-"""
-if options.contdir is not None and options.combiner:
-    depends = None
-    if options.holdout is not None and options.dcheck:
-        depends = ','.join(dcheck_jobs)
-    else:
-        depends = glob_pred_job + ',' + ','.join(ctxt_jobs)
-    job_cmd = 'mv ' + options.workdir + '/predictions/global.dab ' + options.workdir + ' ; ' + binaries['NetworkCombiner'] + ' -o ' + options.workdir + '/global_average.dab -d ' + options.workdir + '/predictions/' 
-    stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtAvg -j y -o ' + options.workdir + '/ -hold_jid ' + depends + ' -l gb=' + str(gb_per) + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
-    combine_job = job_queue_id.search(stdout).group('job_id')
-
-    if options.del_ctxt:
-        job_cmd = 'rm -fr ' + options.workdir + '/predictions/'
-        stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtRm -j y -o ' + options.workdir + '/ -hold_jid ' + combine_job + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
 """
