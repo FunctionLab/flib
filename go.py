@@ -349,10 +349,12 @@ class go:
         tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
         #print terms
         for term in tlist:
-            f = open(out_dir + '/' + term.name, 'w')
+            id_set = set() #put things into a set to avoid duplicate entries (possible multiple annotations with single ID)
             for annotation in term.annotations:
-                print >> f, annotation.gid
-            f.close()
+                id_set.add(annotation.gid)
+            output_fh = open(out_dir + '/' + term.name, 'w')
+            output_fh.write('\n'.join(id_set) + '\n')#keep previous behavior w/ newline at end
+            output_fh.close()
 
     def print_to_single_file(self, out_file, terms=None, p_namespace=None, gene_asso_format=False):
         logger.info('print_to_single_file')
