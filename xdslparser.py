@@ -137,17 +137,12 @@ if __name__ == '__main__':
     filename = options.xdsl     
     nodes = CptNodesHolder(filename=filename)
 
-    print 'FR:'
-    if 'FR' in nodes.get_nodes_ids():
-        node = nodes.get_node('FR')
-        print 'Probabilities for FR: %s' % nodes.get_probabilities('FR')
-        
-    print 'biogrid:'
-    if 'biogrid' in nodes.get_nodes_ids():
-        node = nodes.get_node('biogrid')
-        print node
-        print node.get_logratios()
-        print 'Probabilities for biogrid: %s' % nodes.get_probabilities('biogrid')
-        
-    
-    
+    for s in nodes.get_nodes_ids():
+        node = nodes.get_node(s)
+        befs = node.get_logratios()
+
+        llsum = 0
+        for i in range(len(befs)):
+            llsum += abs(befs[i])
+
+        print s, llsum
