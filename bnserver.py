@@ -14,7 +14,7 @@ from xdslparser import CptNodesHolder
 class BNServer:
 
     INFERENCE, DATA, GRAPH, CONTEXTS = range(4)
-    OTF, EDGES = 9, 10
+    OTF, EDGES, LEARN = 9, 10, 11
 
 
     def __init__(self, gidx = None, ip = '127.0.0.1', port = 1234, bin_effects = None):
@@ -215,6 +215,35 @@ class BNServer:
 
         return res_list
 
+    def learning(self, genes):
+        binEffects = []
+
+        s = self.open_socket()
+
+        size = struct.pack('<i', (len(genes))*4+1)
+        s.send(size)
+
+        opcode = struct.pack('<b', self.LEARN)
+        s.send(opcode)
+
+        gene = struct.pack('<'+'i'*len(genes), *genes)
+        s.send(gene)
+        s.shutdown(socket.SHUT_WR)
+
+        res_len = struct.unpack('<i', s.recv(4))[0]
+        datasets = struct.unpack('<i', s.recv(4))[0]
+
+        for i in range(datasets):
+            bins = struct.unpack('<i', s.recv(4))[0]
+            binEffects.append( struct.unpack('f'*bins, s.recv(bins*4)) )
+
+	s.close()
+
+        print binEffects[1:10]
+
+        return None
+
+
 if __name__ == '__main__':
     from optparse import OptionParser
 
@@ -223,12 +252,13 @@ if __name__ == '__main__':
     parser.add_option("-I", "--IP-address",dest="ip", default='127.0.0.1', help="IP address of BNServer instance")
     parser.add_option("-p", "--port", dest="port", default=1234, help="Port number of BNServer instance", type=int)
 
-    parser.add_option("-i", "--cdatabase-dir", dest="cdb", help="Directory of CDatabase", metavar="FILE")
+    #parser.add_option("-i", "--cdatabase-dir", dest="cdb", help="Directory of CDatabase", metavar="FILE")
     parser.add_option("-d", "--datasets", dest="dset", help="File of dataset names", metavar="FILE")
     parser.add_option("-g", "--gene-file", dest="gene_file", help="File of gene names", metavar="FILE")
-    parser.add_option("-z", "--zeros-file", dest="zeros_file", help="File of gene names", metavar="FILE")
+    #parser.add_option("-z", "--zeros-file", dest="zeros_file", help="File of gene names", metavar="FILE")
     parser.add_option("-f", "--counts-file", dest="counts_file", help="Counts file", metavar="FILE")
-    parser.add_option("-B", "--byte", dest="byte", help="Size of data values", action="store_true", default=False)
+    parser.add_option("-c", "--context-file", dest="ctxt_file", help="Context file", metavar="FILE")
+    #parser.add_option("-B", "--byte", dest="byte", help="Size of data values", action="store_true", default=False)
 
 
     (options, args) = parser.parse_args()
@@ -238,31 +268,39 @@ if __name__ == '__main__':
 
     genef = open(options.gene_file)
     gidx = []
+    gidx_dict = {}
     for l in genef:
         (idx, gene) = l.strip().split()
         gidx.append((int(idx)-1, gene))
+        gidx_dict[gene] = int(idx)
     genef.close()
 
     bin_effects = []
     dsf = open(options.dset)
     didx = []
     for l in dsf:
-        (idx, ds) = l.strip().split()
-	bins = 7
+        (idx, ds, bins) = l.strip().split()
+	bins = int(bins)
 	node = nodes.get_node(ds)
-        bin_effects.append(node.get_logratios())
+        #bin_effects.append(node.get_logratios())
 
         didx.append((int(idx)-1, ds, int(bins)))
     dsf.close()
 
-    #cdb = CDatabase(options.cdb, didx, gidx, options.zeros_file, not options.byte)
-    #counter = Counter.fromcountfile(options.counts_file, cdb)
-
     bns = BNServer(gidx, options.ip, options.port, bin_effects)
-    print bns.evidence(1,2,.01)
+
+    ctxt = []
+    for gene in open(options.ctxt_file):
+        gene = gene.strip()
+        ctxt.append(gidx_dict[gene])
+
+    bns.learning(ctxt)
+
+    #print bns.data(2,5667)
+    #print bns.evidence(1,1,.01)
     #result = bns.inference_otf([1])
     #for g in result:
-    #    for i in range(1,2):
+    #    for i in range(0,5):
             #posterior = 1/(numpy.exp(result[g][i] + numpy.log(.99/.01)) + 1)
     #        print g, (i+1), result[g][i]
 
