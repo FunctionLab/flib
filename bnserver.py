@@ -239,8 +239,6 @@ class BNServer:
 
 	s.close()
 
-        print binEffects[1:10]
-
         return None
 
 
@@ -294,7 +292,11 @@ if __name__ == '__main__':
         gene = gene.strip()
         ctxt.append(gidx_dict[gene])
 
+    import time
+    t1 = time.time()
     bns.learning(ctxt)
+    t2 = time.time()
+    print t2-t1
 
     #print bns.data(2,5667)
     #print bns.evidence(1,1,.01)
