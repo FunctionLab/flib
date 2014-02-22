@@ -239,7 +239,7 @@ class BNServer:
 
 	s.close()
 
-        return None
+        return binEffects 
 
 
 if __name__ == '__main__':
