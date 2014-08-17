@@ -6,17 +6,14 @@ logger = logging.getLogger(__name__)
 
 import operator
 import sys
-import numpy
 
 class DataServer:
 
     SEARCH, QUERY = range(2)
 
-    def __init__(self, gidx, didx, ip = '127.0.0.1', port = 1234):
+    def __init__(self, ip = '127.0.0.1', port = 1234):
         self.ip = ip
         self.port = port
-        self.gidx = gidx;
-        self.didx = didx;
 
     def open_socket(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -58,14 +55,10 @@ class DataServer:
         while len(result) < res_len:
             result += s.recv(res_len)
 
-        scores = struct.unpack('f'*(res_len/4), result)
-
-        genes = scores[0:len(gidx)]
-        dsets = scores[len(gidx):len(scores)]
-        #print len(genes), len(dsets), genes[0:20], dsets[0:20]
+        scores = struct.unpack('ii'+'f'*(res_len/4 -2), result)
 
         s.close()
-        return (genes,dsets)
+        return scores
 
 
 if __name__ == '__main__':
@@ -108,11 +101,14 @@ if __name__ == '__main__':
             query_names.add(l.strip())
 
     print query
-    ds  = DataServer(gidx, didx, options.ip, options.port)
-    genes,dsets = ds.search(.5, 8, options.did, list(query))
+    ds  = DataServer(options.ip, options.port)
+    scores = ds.search(.5, 8, options.did, list(query))
 
-    for ((idx,name),score) in zip(gidx,genes)[0:10]:
-        print name + '\t' + ('1' if name in query_names else '-1') + '\t' + str(score)
+    print len(scores)
+    print scores[0:10]
 
-    for ((idx,name),score) in zip(didx,dsets)[0:10]:
-        print name + '\t' + ('1' if name in query_names else '-1') + '\t' + str(score)
+#    for ((idx,name),score) in zip(gidx,genes)[0:10]:
+#        print name + '\t' + ('1' if name in query_names else '-1') + '\t' + str(score)
+
+#    for ((idx,name),score) in zip(didx,dsets)[0:10]:
+#        print name + '\t' + ('1' if name in query_names else '-1') + '\t' + str(score)
