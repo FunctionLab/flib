@@ -50,15 +50,44 @@ class DataServer:
         result = s.recv(4)
         res_len = struct.unpack('<i', result)[0]
 
-        # Get all bytes until finished
-        result = s.recv(res_len)
-        while len(result) < res_len:
-            result += s.recv(res_len)
+        result = s.recv(4)
+        gcount = struct.unpack('<i', result)[0]
 
-        scores = struct.unpack('ii'+'f'*(res_len/4 -2), result)
+        result = s.recv(4)
+        dcount = struct.unpack('<i', result)[0]
+
+        res_len -= 8
+
+        import time
+        print 'getting results', time.time()
+
+        # Get all bytes until finished
+        str_list = []
+        str_list.append( s.recv(res_len) )
+        result = len(str_list[-1])
+
+        while result < res_len:
+            try:
+                str_list.append( s.recv(res_len) )
+                result += len(str_list[-1])
+            except MemoryError:
+                print len(str_list), result
+
+        print 'starting unpack', time.time()
+
+        try:
+            bstring = ''.join(str_list)
+            scores = struct.unpack('i'*dcount + 'f'*(res_len/4 - dcount), bstring)
+        except AttributeError:
+            print len(str_list), result
+        except:
+            print len(str_list), result
+
+        print 'finished unpack', time.time()
+
 
         s.close()
-        return scores
+        return (gcount, dcount, scores)
 
 
 if __name__ == '__main__':
