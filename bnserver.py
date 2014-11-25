@@ -298,6 +298,8 @@ if __name__ == '__main__':
     t2 = time.time()
     print t2-t1
 
+
+
     #print bns.data(2,5667)
     #print bns.evidence(1,1,.01)
     #result = bns.inference_otf([1])
