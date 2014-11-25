@@ -21,7 +21,7 @@ class go:
     """
     Pass the obo file
     """
-    def __init__(self, obo_file):
+    def __init__(self, obo_file, description=False):
         self.heads = []
         self.go_terms = {}
         self.alt_id2std_id = {}
@@ -97,6 +97,8 @@ class go:
             elif inside and fields[0] == 'is_obsolete:':
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
+            elif inside and description and fields[0] == 'def:':
+                gterm.description = line.rstrip().split("\"")[1]
 
     """
     propagate all gene annotations
@@ -113,9 +115,13 @@ class go:
             return
 
         for child_term in gterm.parent_of:
+            # if propnspace arg given, don't propagate when nspace is different
+            # if options.nspace and child_term.nspace != gterm.nspace:
+            #    continue
+            
             self.propagate_recurse(child_term)
             new_annotations = set()
-
+            
             regulates_relation = (gterm in child_term.relationship_regulates)
             part_of_relation = (gterm in child_term.relationship_part_of)
             
@@ -201,6 +207,20 @@ class go:
             reterms.append(obo_term)
         return reterms
 
+    def get_term_list_with_annotations(self, terms=None, p_namespace=None):
+        logger.info('get_termobject_list')
+        if terms is None:
+            terms = self.go_terms.keys()
+        reterms = []
+        for tid in terms:
+            obo_term = self.get_term(tid)
+            if obo_term is None:
+                continue
+            if (p_namespace is not None and obo_term.namespace != p_namespace) or len(obo_term.annotations) < 1:
+                continue
+            reterms.append(obo_term.go_id)
+        return reterms
+
     def get_termdict_list(self, terms=None, p_namespace=None):
         logger.info('get_termdict_list')
         tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
@@ -215,8 +235,8 @@ class go:
         #print terms
         for term in tlist:
             f = open(out_dir + '/' + term.name, 'w')
-            for annotation in term.annotations:
-                print >> f, annotation.gid
+            for gene in term.get_annotated_genes():
+                print >> f, gene 
             f.close()
 
     def print_to_single_file(self, out_file, terms=None, p_namespace=None, gene_asso_format=False):
@@ -242,8 +262,7 @@ class go:
                 else:
                     print >> f, term.go_id + '\t' + annotation.gid
         f.close()
-
-
+                
     def dictify(self, term, thedict):
         direct = 0
         total = len(term.annotations)
@@ -262,7 +281,7 @@ class go:
             thedict["children"] = child_vals
         return
 
-    def to_json(self):
+    def to_json(self, slim):
         """
         Return the hierarchy for all nodes with more than min genes
         as a json string (depends on simplejson).
@@ -273,6 +292,15 @@ class go:
             self.dictify(head, redict)
         return 'var ontology = ' + simplejson.dumps(redict, indent=2)
 
+
+    # print goterms/description
+    def print_goterms_description(self, file_handler, p_namespace=None):
+        tlist = self.get_termobject_list(p_namespace=p_namespace)        
+        # print terms
+        for term in tlist:            
+            file_handler.write('\t'.join([term.go_id, term.name]) + '\n')
+            
+            
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
         logger.info('print_refids')
@@ -297,9 +325,10 @@ class go:
         for go_term in self.go_terms.itervalues():
             go_term.map_genes(id_name)
 
-    def populate_annotations(self, annotation_file, xdb_col=0, gene_col=None, term_col=None, ref_col=5, ev_col=6, date_col=13):
+    # special col assignment is reqired for cross annotated or propagated association files, must set idx if not set to defualt
+    def populate_annotations(self, annotation_file, xdb_col=0, gene_col=None, term_col=None, ref_col=5, ev_col=6, date_col=13, direct_col=None, cross_col=None, origin_col=None, details_col=3):
         logger.info('Populate gene annotations: %s', annotation_file)
-        details_col = 3
+        #details_col = 3
         f = open(annotation_file, 'r')
         for line in f:
             if line[0] == '!':
@@ -338,11 +367,37 @@ class go:
                     continue
             except IndexError:
                 pass
+
+            # these values exist in cross annotated association files, must set idx if not set to defualt
+            if direct_col is not None:
+                try:
+                    isdirect = (fields[direct_col] == 'True')
+                except IndexError:
+                    isdirect = True
+            else:
+                isdirect = True
+                    
+            if cross_col is not None:
+                try:
+                    iscross = (fields[cross_col] == 'True')
+                except IndexError:
+                    iscross = False
+            else:
+                iscross = False
+                
+            if origin_col is not None:
+                try:
+                    worigin = fields[origin_col]
+                except IndexError:
+                    worigin = None
+            else:
+                worigin = None
+                
             go_term = self.get_term(go_id)
             if go_term is None:
                 continue
             logger.info('Gene %s and term %s', gene, go_term.go_id)
-            annotation = Annotation(xdb=xdb, gid=gene, ref=ref, evidence=ev, date=date, direct=True)
+            annotation = Annotation(xdb=xdb, gid=gene, ref=ref, evidence=ev, date=date, direct=isdirect, cross_annotated=iscross, origin=worigin)
             go_term.annotations.add(annotation)
 
         f.close()
@@ -506,26 +561,6 @@ class go:
             return False
 
     """
-    get propagated descendents of term
-    """
-    def get_descendents(self, gterm):
-	if not self.go_terms.has_key(gterm):
-	    return set()
-	term = self.go_terms[gterm]
-	
-	if len(term.parent_of) == 0:
-	    return set()
-
-	child_terms = set()
-	for child_term in term.parent_of:
-	    if child_term.namespace != term.namespace:
-		continue
-	    child_terms.add( child_term.go_id )
-	    child_terms = child_terms | self.get_descendents( child_term.go_id )
-
-	return child_terms
-
-    """
     get propagated ancestors of term 
     """
     def get_ancestors(self, gterm):
@@ -544,10 +579,115 @@ class go:
             parent_terms = parent_terms | self.get_ancestors( parent_term.go_id )
 
         return parent_terms
+    
+    """
+    get child terms
+    """
+    def get_descendants(self, gterm):
+        if self.go_terms.has_key(gterm) is False:
+            return set()
+        term = self.go_terms[gterm]
+        
+        if len(term.parent_of) == 0:
+            return set()
+        
+        child_terms = set()
+        for child_term in term.parent_of:
+            if child_term.namespace != term.namespace:
+                continue
+            child_terms.add( child_term.go_id )
+            child_terms = child_terms | self.get_descendants( child_term.go_id )
+            
+        return child_terms
 
+    def get_leaves(self):
+        leaves = set()
+        bottom = set()
+        for term in self.go_terms.values():
+            if len(term.parent_of) == 0 and term.namespace=='biological_process' and term.name.find('regulation') == -1:
+                leaves.add(term.go_id)
+        bottom |= leaves
+        for l in leaves:
+            lterm = self.go_terms[l]
+            for p in lterm.child_of:
+                if len(p.parent_of) > 5:
+                    continue
+                bottom.add(p.go_id)
+        return bottom 
 
+    def propagate_prediction_scores(self, prop_cutoff=None, go2answers_count=None):
+        for head_gterm in self.heads:
+            logger.info("Propagating %s", head_gterm.name)
+            self.propagate_prediction_scores_recurse(head_gterm, prop_cutoff, go2answers_count)
+            
+    def propagate_prediction_scores_recurse(self, gterm, prop_cutoff, go2answers_count):
+        if not len(gterm.parent_of):
+            logger.debug("Base case with term %s", gterm.name)
+            return
+        
+        for child_term in gterm.parent_of:            
+            self.propagate_prediction_scores_recurse(child_term, prop_cutoff, go2answers_count)
+            
+            if prop_cutoff != None and \
+                   go2answers_count.has_key(gterm.get_id()) and \
+                   prop_cutoff < go2answers_count[gterm.get_id()]:
 
+                if not go2answers_count.has_key(child_term.get_id()):
+                    continue
+                elif prop_cutoff >= go2answers_count[child_term.get_id()]:
+                    continue
+            
+            for gene in child_term.predict_scores:
+                if gterm.predict_scores.has_key(gene) and gterm.predict_scores[gene] > child_term.predict_scores[gene]:
+                    continue
+                else:
+                    gterm.predict_scores[gene] = child_term.predict_scores[gene]
 
+    
+    def get_term_def(self, go_name):
+        for (name, gterm) in self.go_terms.iteritems():
+            if gterm.name == go_name:
+                if gterm.description == None:
+                    return ''
+                else:
+                    return gterm.description
+        return ''
+
+    def get_term_by_goname(self, go_name):
+        for (name, gterm) in self.go_terms.iteritems():
+            if gterm.name == go_name:
+                return gterm
+        return None
+
+    def get_term_name_description(self, goid):
+        if self.go_terms.has_key(goid):
+            if self.go_terms[goid].description == None:
+                return [self.go_terms[goid].name, self.go_terms[goid].name]
+            else:
+                return [self.go_terms[goid].name, self.go_terms[goid].description]
+        else:
+            return None
+
+    def check_xcross(self, goid, geneid, org_code):
+        try:
+            term = self.go_terms[goid]
+        except KeyError:
+            try:
+                term = self.go_terms[self.alt_id2std_id[goid]]
+            except KeyError:
+                logger.error('Term name does not exist: %s', goid)
+                
+        for annotation in term.annotations:
+            if annotation.gid == geneid:                
+                if not annotation.cross_annotated:
+                    #print >> sys.stderr, "cross", goid, geneid, org_code, annotation.cross_annotated, annotation.origin
+                    return True
+                elif annotation.origin == org_code:
+                    #print >> sys.stderr, "orgcode", goid, geneid, org_code, annotation.cross_annotated, annotation.origin
+                    return True
+        #print >> sys.stderr, "False", goid, geneid, org_code, annotation.cross_annotated, annotation.origin
+        return False
+    
 class Annotation(object):
     def __init__(self, xdb=None, gid=None, ref=None, evidence=None, date=None, direct=False, cross_annotated=False, origin=None, ortho_evidence=None, ready_regulates_cutoff=False):
         super(Annotation, self).__setattr__('xdb', xdb)
@@ -566,12 +706,12 @@ class Annotation(object):
             ready_regulates_cutoff = self.ready_regulates_cutoff
         
         return Annotation(xdb=self.xdb, gid=self.gid, ref=self.ref,
-                          evidence=self.evidence, date=self.date, direct=False, cross_annotated=False,
-                          ortho_evidence=self.ortho_evidence, ready_regulates_cutoff=ready_regulates_cutoff)
+                          evidence=self.evidence, date=self.date, direct=False, cross_annotated=self.cross_annotated,
+                          ortho_evidence=self.ortho_evidence, ready_regulates_cutoff=ready_regulates_cutoff, origin=self.origin)
     
     def __hash__(self):
         return hash((self.xdb, self.gid, self.ref, self.evidence,
-                     self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff. self.origin))
+                     self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff, self.origin))
 
     def __eq__(self, other):
         return (self.xdb, self.gid, self.ref, self.evidence, self.date, self.direct, self.cross_annotated, self.ortho_evidence, self.ready_regulates_cutoff, self.origin).__eq__((other.xdb, other.gid, other.ref, other.evidence, other.date, other.direct, other.cross_annotated, other.ortho_evidence, other.ready_regulates_cutoff, other.origin))
@@ -600,6 +740,9 @@ class GOTerm:
     weight = None
     num_direct = None
 
+    predict_scores = None
+    description = None
+
     def __init__(self, go_id):
         self.head = True
         self.go_id = go_id
@@ -618,7 +761,9 @@ class GOTerm:
         self.counts = {'sa': Counts(), 'ta': Counts(), 'ap': Counts(), 'dw': Counts()}
         self.weight = 0.0
         self.num_direct = -1
-
+        
+        self.predict_scores = {}
+        
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
 
@@ -635,6 +780,14 @@ class GOTerm:
 
     def get_id(self):
         return self.go_id
+    def get_name(self):
+        return self.name
+    def get_def(self):
+        if self.description == None:
+            return ''
+        else:
+            return self.description
+        
     def map_genes(self, id_name):
         mapped_annotations_set = set([])
         for annotation in self.annotations:
@@ -652,11 +805,11 @@ class GOTerm:
         self.annotations = mapped_annotations_set
 
     def get_annotated_genes(self, include_cross_annotated=True):
-        genes = []
+        genes = set()
         for annotation in self.annotations:
             if (not include_cross_annotated) and annotation.cross_annotated:
                 continue
-            genes.append(annotation.gid)
+            genes.add(annotation.gid)
         return genes
 
     def add_annotation(self, gid, cross_annotated=False, allow_duplicate_gid=True, origin=None, ortho_evidence=None):
@@ -671,6 +824,26 @@ class GOTerm:
     
     def get_namespace(self):
         return self.namespace
+        
+    def set_prediction_scores(self, gene, score):
+        self.predict_scores[gene] = score
+        
+    def get_prediction_scores(self, gene):
+        return self.predict_scores[gene]
+        
+    def print_prediction_scores(self, fout):
+        for gene in self.predict_scores:
+            fout.write('\t'.join([gene, self.go_id, str(self.predict_scores[gene])]) + '\n')
+            
+    def clear_prediction_scores(self):
+        self.predict_scores = {}
+        
+    def prediction_scores_cleared(self):
+        if len(self.predict_scores) == 0:
+            return True
+        else:
+            return False
+
 
 if __name__ == '__main__':
     from optparse import OptionParser
@@ -692,12 +865,16 @@ if __name__ == '__main__':
     parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
     parser.add_option("-j", "--json-file", dest="json", help="file to output ontology (as json) to.")
     parser.add_option("-A", dest="assoc_format", action="store_true", help="If we are printing to a file (-f), pass this to get a full association file back.")
+    parser.add_option("-D", dest="descend", action="store_true", help="Print GO term descendents of term file (-t).")
+    parser.add_option("-L", dest="leaves", action="store_true", help="Print GO term leaves.")
+    parser.add_option("-N", action="store_true", dest="propnspace", help="Prevent propagating gene annotations between goterms that are in different namespaces.")
+    
     (options, args) = parser.parse_args()
 
     if options.obo is None:
         sys.stderr.write("--obo file is required.\n")
         sys.exit()
-    if options.check_fringe is None and options.ass is None:
+    if options.check_fringe is None and options.ass is None and options.descend is None and options.leaves is None:
         sys.stderr.write("--association file is required.\n")
         sys.exit()
     if options.check_fringe is None and options.opref is None and not options.refids:
@@ -710,9 +887,9 @@ if __name__ == '__main__':
     id_name = None
     if options.idfile is not None:
         id_name = idmap(options.idfile)
-
+        
     gene_ontology = go(options.obo)
-
+    
     # only check if fringe is valid in this obo file?
     if options.check_fringe:
         if gene_ontology.check_fringe(options.slim, options.nspace):
@@ -721,8 +898,13 @@ if __name__ == '__main__':
             print "not a fringe"
         # now exit
         sys.exit(0)
+    if options.leaves:
+        leaves = gene_ontology.get_leaves()
+        for l in leaves:
+            print l
 
-    gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
+    if options.descend is None:
+        gene_ontology.populate_annotations(options.ass, gene_col=options.gcol, term_col=options.term_col)
 
     if options.idfile is not None:
         gene_ontology.map_genes(id_name)
@@ -752,6 +934,16 @@ if __name__ == '__main__':
             gene_ontology.print_refids(gterms, options.nspace)
         elif options.ofile:
             gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, gterms, options.nspace, options.assoc_format)
+        elif options.descend:
+            children = set()
+            for term in gterms:
+                desc = gene_ontology.get_descendants(term)
+                children |= desc
+                print >> sys.stderr, term, len(desc)
+            children |= set(gterms)
+            for c in children:
+                if c in gene_ontology.go_terms:
+                    print gene_ontology.go_terms[c].name + '\t' + c
         else:
             gene_ontology.print_terms(options.opref, gterms, options.nspace)
     else:
@@ -761,4 +953,5 @@ if __name__ == '__main__':
             gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, None, options.nspace, options.assoc_format)
         else:
             gene_ontology.print_terms(options.opref, None, options.nspace)
+
 
