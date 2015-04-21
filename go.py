@@ -97,6 +97,9 @@ class go:
             elif inside and fields[0] == 'is_obsolete:':
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
+            elif inside and fields[0] == 'xref:':
+                (xrefdb, xrefid) = fields[1].split(':')
+                gterm.xrefs.setdefault( xrefdb, set() ).add(xrefid)
 
     """
     propagate all gene annotations
@@ -757,6 +760,7 @@ class GOTerm:
     summary = None
     desc = None
     votes = None
+    xrefs = None
 
     def __init__(self, go_id):
         self.head = True
@@ -776,6 +780,7 @@ class GOTerm:
         self.counts = None
         self.desc = None
         self.votes = set([])
+        self.xrefs = {}
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
