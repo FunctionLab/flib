@@ -385,6 +385,20 @@ class go:
                     print >> f, term.go_id + '\t' + annotation.gid
         f.close()
 
+    def print_to_gmt_file(self, out_file, terms=None, p_namespace=None):
+        logger.info('print_to_gmt_file')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
+        f = open(out_file, 'w')
+        for term in tlist:
+            genes = []
+            for annotation in term.annotations:
+                genes.append( annotation.gid )
+            if len(genes) > 0:
+                print >> f, term.go_id + '\t' + term.name + ' (' + str(len(genes)) + ')\t' + '\t'.join(genes)
+        f.close()
+
+
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
         logger.info('print_refids')
