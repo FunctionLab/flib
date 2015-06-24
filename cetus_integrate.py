@@ -180,7 +180,7 @@ if options.contdir is not None and options.combiner:
         depends = ','.join(dcheck_jobs)
     else:
         depends = glob_pred_job + ',' + ','.join(ctxt_jobs)
-    job_cmd = 'mv ' + options.workdir + '/predictions/global.dab ' + options.workdir + ' ; ' + binaries['NetworkCombiner'] + ' -o ' + options.workdir + '/global_average.dab -d ' + options.workdir + '/predictions/' 
+    job_cmd = 'mv ' + options.workdir + '/predictions/global.dab ' + options.workdir + ' ; ' + binaries['NetworkCombiner'] + ' -v0 -o ' + options.workdir + '/global_average.dab -d ' + options.workdir + '/predictions/' 
     stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtAvg -j y -o ' + options.workdir + '/ -hold_jid ' + depends + ' -l gb=' + str(gb_per) + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
     combine_job = job_queue_id.search(stdout).group('job_id')
 

@@ -97,6 +97,9 @@ class go:
             elif inside and fields[0] == 'is_obsolete:':
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
+            elif inside and fields[0] == 'xref:':
+                (xrefdb, xrefid) = fields[1].split(':')
+                gterm.xrefs.setdefault( xrefdb, set() ).add(xrefid)
 
     """
     propagate all gene annotations
@@ -352,6 +355,8 @@ class go:
             id_set = set() #put things into a set to avoid duplicate entries (possible multiple annotations with single ID)
             for annotation in term.annotations:
                 id_set.add(annotation.gid)
+            if len(id_set) == 0:
+                continue
             output_fh = open(out_dir + '/' + term.name, 'w')
             output_fh.write('\n'.join(id_set) + '\n')#keep previous behavior w/ newline at end
             output_fh.close()
@@ -379,6 +384,20 @@ class go:
                 else:
                     print >> f, term.go_id + '\t' + annotation.gid
         f.close()
+
+    def print_to_gmt_file(self, out_file, terms=None, p_namespace=None):
+        logger.info('print_to_gmt_file')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
+        f = open(out_file, 'w')
+        for term in tlist:
+            genes = []
+            for annotation in term.annotations:
+                genes.append( annotation.gid )
+            if len(genes) > 0:
+                print >> f, term.go_id + '\t' + term.name + ' (' + str(len(genes)) + ')\t' + '\t'.join(genes)
+        f.close()
+
 
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):
@@ -755,6 +774,7 @@ class GOTerm:
     summary = None
     desc = None
     votes = None
+    xrefs = None
 
     def __init__(self, go_id):
         self.head = True
@@ -774,6 +794,7 @@ class GOTerm:
         self.counts = None
         self.desc = None
         self.votes = set([])
+        self.xrefs = {}
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
