@@ -6,10 +6,13 @@ logger = logging.getLogger(__name__)
 
 import operator
 import sys
+import array
+import numpy as np
 
 class DataServer:
 
     SEARCH, QUERY = range(2)
+    DSERVER_STATUS = 'dserver_status'
 
     def __init__(self, ip = '127.0.0.1', port = 1234):
         self.ip = ip
@@ -24,7 +27,11 @@ class DataServer:
         s.shutdown(socket.SHUT_WR)
         s.close()
 
-    def search(self, cut, exp, didx, genes = []):
+    def search(self, cut, exp, didx, genes = [], session = None):
+
+        session[self.DSERVER_STATUS] = 'Calculating results...'
+        session.save()
+
         s = self.open_socket()
 
         size = 1 + 4 + 4 + 4 # opcode + dataset id + cut + exp
@@ -58,8 +65,8 @@ class DataServer:
 
         res_len -= 8
 
-        import time
-        print 'getting results', time.time()
+        session[self.DSERVER_STATUS] = 'Gathering results...'
+        session.save()
 
         # Get all bytes until finished
         str_list = []
@@ -71,22 +78,22 @@ class DataServer:
                 str_list.append( s.recv(res_len) )
                 result += len(str_list[-1])
             except MemoryError:
-                print len(str_list), result
+                logger.exception()
 
-        print 'starting unpack', time.time()
+        logger.debug('Starting unpack')
 
-        try:
-            bstring = ''.join(str_list)
-            scores = struct.unpack('i'*dcount + 'f'*(res_len/4 - dcount), bstring)
-        except AttributeError:
-            print len(str_list), result
-        except:
-            print len(str_list), result
+        bstring = ''.join(str_list)
+        dids = np.fromstring(bstring[0:(4*dcount)], dtype=np.uint32)
+        values = np.fromstring(bstring[(4*dcount):], dtype=np.float32)
+        scores = np.append(dids, values)
 
-        print 'finished unpack', time.time()
-
+        logger.debug('Finished unpack')
 
         s.close()
+
+        session[self.DSERVER_STATUS] = 'Returning results...'
+        session.save()
+
         return (gcount, dcount, scores)
 
 
