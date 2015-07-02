@@ -11,7 +11,7 @@ import numpy as np
 
 class DataServer:
 
-    SEARCH, QUERY = range(2)
+    SEARCH, QUERY, RETRIEVE = range(3)
     DSERVER_STATUS = 'dserver_status'
 
     def __init__(self, ip = '127.0.0.1', port = 1234):
@@ -27,7 +27,7 @@ class DataServer:
         s.shutdown(socket.SHUT_WR)
         s.close()
 
-    def search(self, cut, exp, didx, genes = [], session = None):
+    def search(self, cut, exp, didx, genes = [], session = {}):
 
         session[self.DSERVER_STATUS] = 'Calculating results...'
         session.save()
@@ -53,39 +53,28 @@ class DataServer:
         s.send(gene)
         s.shutdown(socket.SHUT_WR)
 
-        scores = []
         result = s.recv(4)
         res_len = struct.unpack('<i', result)[0]
 
-        result = s.recv(4)
-        gcount = struct.unpack('<i', result)[0]
+        result = s.recv(res_len)
 
-        result = s.recv(4)
-        dcount = struct.unpack('<i', result)[0]
+        logger.debug('Total received: %s' % len(result))
+        logger.debug('Total expected: %s' % (res_len))
 
-        res_len -= 8
+        while len(result) < res_len:
+            #logger.debug(len(result))
+            result += s.recv(res_len)
+
+        gtotal, dtotal = struct.unpack('<ii', result[0:8])
+
+        logger.debug('Total genes %s datasets %s' % (gtotal, dtotal))
 
         session[self.DSERVER_STATUS] = 'Gathering results...'
         session.save()
 
-        # Get all bytes until finished
-        str_list = []
-        str_list.append( s.recv(res_len) )
-        result = len(str_list[-1])
-
-        while result < res_len:
-            try:
-                str_list.append( s.recv(res_len) )
-                result += len(str_list[-1])
-            except MemoryError:
-                logger.exception()
-
         logger.debug('Starting unpack')
 
-        bstring = ''.join(str_list)
-        dids = np.fromstring(bstring[0:(4*dcount)], dtype=np.uint32)
-        values = np.fromstring(bstring[(4*dcount):], dtype=np.float32)
-        scores = np.append(dids, values)
+        scores = struct.unpack('<'+'f'*(dtotal + gtotal), result[8:])
 
         logger.debug('Finished unpack')
 
@@ -94,7 +83,47 @@ class DataServer:
         session[self.DSERVER_STATUS] = 'Returning results...'
         session.save()
 
-        return (gcount, dcount, scores)
+        return (gtotal, dtotal, scores)
+
+    def retrieve(self, didx = [], genes = []):
+
+        s = self.open_socket()
+
+        size = 1 + 4 # opcode + dataset id + total
+        size += 4*len(didx)
+        size += 4*len(genes)
+
+        size = struct.pack('<i', size)
+        s.send(size)
+
+        opcode = struct.pack('<b', self.RETRIEVE)
+        s.send(opcode)
+
+        total = struct.pack('<i', len(didx))
+        s.send(total)
+
+        did = struct.pack('<'+'i'*len(didx), *didx)
+        s.send(did)
+
+        gene = struct.pack('<'+'i'*len(genes), *genes)
+        s.send(gene)
+        s.shutdown(socket.SHUT_WR)
+
+        scores = []
+        result = s.recv(4)
+        res_len = struct.unpack('<i', result)[0]
+
+        # Get all bytes until finished
+        result = s.recv(res_len)
+
+        while len(result) < res_len:
+            result += s.recv(res_len)
+
+        gtotal, dtotal = struct.unpack('<ii', result[0:8])
+        scores = struct.unpack('<'+'f'*gtotal*dtotal, result[8:])
+
+        return (gtotal, scores)
+
 
 
 if __name__ == '__main__':
