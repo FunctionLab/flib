@@ -6,10 +6,13 @@ logger = logging.getLogger(__name__)
 
 import operator
 import sys
+import array
+import numpy as np
 
 class DataServer:
 
-    SEARCH, QUERY = range(2)
+    SEARCH, QUERY, RETRIEVE = range(3)
+    DSERVER_STATUS = 'dserver_status'
 
     def __init__(self, ip = '127.0.0.1', port = 1234):
         self.ip = ip
@@ -24,7 +27,11 @@ class DataServer:
         s.shutdown(socket.SHUT_WR)
         s.close()
 
-    def search(self, cut, exp, didx, genes = []):
+    def search(self, cut, exp, didx, genes = [], session = {}):
+
+        session[self.DSERVER_STATUS] = 'Calculating results...'
+        session.save()
+
         s = self.open_socket()
 
         size = 1 + 4 + 4 + 4 # opcode + dataset id + cut + exp
@@ -46,48 +53,77 @@ class DataServer:
         s.send(gene)
         s.shutdown(socket.SHUT_WR)
 
+        result = s.recv(4)
+        res_len = struct.unpack('<i', result)[0]
+
+        result = s.recv(res_len)
+
+        logger.debug('Total received: %s' % len(result))
+        logger.debug('Total expected: %s' % (res_len))
+
+        while len(result) < res_len:
+            #logger.debug(len(result))
+            result += s.recv(res_len)
+
+        gtotal, dtotal = struct.unpack('<ii', result[0:8])
+
+        logger.debug('Total genes %s datasets %s' % (gtotal, dtotal))
+
+        session[self.DSERVER_STATUS] = 'Gathering results...'
+        session.save()
+
+        logger.debug('Starting unpack')
+
+        scores = struct.unpack('<'+'f'*(dtotal + gtotal), result[8:])
+
+        logger.debug('Finished unpack')
+
+        s.close()
+
+        session[self.DSERVER_STATUS] = 'Returning results...'
+        session.save()
+
+        return (gtotal, dtotal, scores)
+
+    def retrieve(self, didx = [], genes = []):
+
+        s = self.open_socket()
+
+        size = 1 + 4 # opcode + dataset id + total
+        size += 4*len(didx)
+        size += 4*len(genes)
+
+        size = struct.pack('<i', size)
+        s.send(size)
+
+        opcode = struct.pack('<b', self.RETRIEVE)
+        s.send(opcode)
+
+        total = struct.pack('<i', len(didx))
+        s.send(total)
+
+        did = struct.pack('<'+'i'*len(didx), *didx)
+        s.send(did)
+
+        gene = struct.pack('<'+'i'*len(genes), *genes)
+        s.send(gene)
+        s.shutdown(socket.SHUT_WR)
+
         scores = []
         result = s.recv(4)
         res_len = struct.unpack('<i', result)[0]
 
-        result = s.recv(4)
-        gcount = struct.unpack('<i', result)[0]
-
-        result = s.recv(4)
-        dcount = struct.unpack('<i', result)[0]
-
-        res_len -= 8
-
-        import time
-        print 'getting results', time.time()
-
         # Get all bytes until finished
-        str_list = []
-        str_list.append( s.recv(res_len) )
-        result = len(str_list[-1])
+        result = s.recv(res_len)
 
-        while result < res_len:
-            try:
-                str_list.append( s.recv(res_len) )
-                result += len(str_list[-1])
-            except MemoryError:
-                print len(str_list), result
+        while len(result) < res_len:
+            result += s.recv(res_len)
 
-        print 'starting unpack', time.time()
+        gtotal, dtotal = struct.unpack('<ii', result[0:8])
+        scores = struct.unpack('<'+'f'*gtotal*dtotal, result[8:])
 
-        try:
-            bstring = ''.join(str_list)
-            scores = struct.unpack('i'*dcount + 'f'*(res_len/4 - dcount), bstring)
-        except AttributeError:
-            print len(str_list), result
-        except:
-            print len(str_list), result
+        return (gtotal, scores)
 
-        print 'finished unpack', time.time()
-
-
-        s.close()
-        return (gcount, dcount, scores)
 
 
 if __name__ == '__main__':
