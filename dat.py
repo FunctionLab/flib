@@ -12,16 +12,15 @@ class dat:
 		self.gene_index={}
 		for i in range(len(self.gene_list)):
 			self.gene_index[self.gene_list[i]]=i
-		
+
 	def open_file(self,filename):
 		dab_file = open(filename, 'rb' )
-		
+
 		#get number of genes
 		a = array.array('I')
 		a.fromfile(dab_file,1)
-		#print "#nodes="+str(a[0])		
 		size=a[0]
-		
+
 		#get gene names
 		start=4
 		end=4
@@ -30,47 +29,38 @@ class dat:
 			dab_file.seek(end)
 			if( dab_file.read(2)=='\0\0' ):
 				dab_file.seek(start)
-								
+
 				gene = dab_file.read(end-start+1)
 				gene = gene.strip()
 				gene = gene.replace('\x00','')
-				
+
 				self.gene_list.append(gene)
 				self.gene_table[gene]=count
-				
-				start=end+2				
-				count+=1	
+
+				start=end+2
+				count+=1
 				end+=1
 			end+=1
-		
+
 		#get half matrix values
 		total=(size*(size-1))/2
 		dab_file.seek(start)
 		self.dat = array.array('f')
 		self.dat.fromfile(dab_file,total)
-		
+
 		assert len(self.dat) == total
-		#print "#edges="+str(total)
-		#print self.gene_list[0:10]
-		#print self.dat[0:10]
-	
+
 	def get_size(self):
 		return len(self.gene_list)
-	
+
 	def get_gene(self, id):
 		return self.gene_list[id]
 
 	def get_value(self, gene1, gene2):
-		#print gene1, gene2
-		#try:
-		#	id1 = self.gene_list.index(gene1)
-		#	id2 = self.gene_list.index(gene2)
-		#except ValueError:
-		#	return None
 
 		g1 = min( gene1, gene2 )
 		g2 = max( gene1, gene2 )
-		
+
 		start=self.arith_sum( (len(self.gene_list))-g1, (len(self.gene_list)-1) ) #index of first id
 		start += (g2-g1)-1 #index of second id
 		try:
@@ -78,34 +68,25 @@ class dat:
 		except IndexError:
 			print 'Error: ', start, gene1, gene2
 			exit()
-		
+
 		return v
-		#index=0
-		#for i in range(0,len(self.gene_list)):
-		#	for j in range(i+1,len(self.gene_list)):
-		#		if( g1==i and g2==j ):
-		#			if( index != start ):
-		#				print index, start
-		#			assert index == start
-		#			return self.dat[index]
-		#		index += 1
 
 
-		
+
 	def get_index(self, gene):
 		try:
 			return self.gene_index[gene]
 		except KeyError:
 			return None	
-		
+
 	def arith_sum(self, x, y ):
 		return .5 * (y-x+1) * (x+y)
-		
+
 	def print_table(self, out_file=sys.stdout):
 		cols = ['GENE']
 		cols.extend(self.gene_list) 
 		print >> out_file, "\t".join(cols)
-			
+
 		for i in range(0,self.get_size()):
 			line=[]
 			line.append(self.gene_list[i])
@@ -116,14 +97,14 @@ class dat:
 			for j in range(i+1,self.get_size()):
                                 v = self.get_value(i,j) 
                                 line.append(str(v))
-		
+
 			print >> out_file, "\t".join(line)
 
 	def print_flat(self, out_file=sys.stdout):
 		for i in range(0,self.get_size()):
 			for j in range(i+1, self.get_size()):
 				print >> out_file, self.gene_list[i] + '\t' + self.gene_list[j] + '\t' + str(self.get_value(i, j))
-			
+
 
 	def get_neighbors(self, gene_str, cutoff):
 		neighbors = set()
@@ -134,6 +115,22 @@ class dat:
 			if self.get_value(gene_id, i) > cutoff:
 				neighbors.add(self.gene_list[i]) 
 		return neighbors
+
+        def get(self, gene_str):
+		vals = []
+		idx = self.get_index(gene_str)
+		if idx is None:
+                    return vals
+		for i in range(0,idx):
+                    start = self.arith_sum( (len(self.gene_list))-i, (len(self.gene_list)-1) )
+                    start += (idx-i)-1
+                    v = self.dat[int(start)]
+                    vals.append(v)
+                start = self.arith_sum( (len(self.gene_list))-idx, (len(self.gene_list)-1) )
+                start -= 1
+                vals += self.dat[int(start):int(start)+len(self.gene_list)-idx]
+
+                return vals
 
 
 if __name__ == '__main__':

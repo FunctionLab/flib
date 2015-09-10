@@ -5,6 +5,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 
 import re
+from collections import defaultdict
 from idmap import idmap
 
 class go:
@@ -98,8 +99,10 @@ class go:
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
             elif inside and fields[0] == 'xref:':
-                (xrefdb, xrefid) = fields[1].split(':')
-                gterm.xrefs.setdefault( xrefdb, set() ).add(xrefid)
+                tok = fields[1].split(':')
+                if len(tok) > 1:
+                    (xrefdb, xrefid) = fields[1].split(':')
+                    gterm.xrefs.setdefault( xrefdb, set() ).add(xrefid)
 
     """
     propagate all gene annotations
@@ -391,13 +394,40 @@ class go:
         tlist.sort()
         f = open(out_file, 'w')
         for term in tlist:
-            genes = []
+            genes = set()
             for annotation in term.annotations:
-                genes.append( annotation.gid )
+                genes.add( annotation.gid )
             if len(genes) > 0:
                 print >> f, term.go_id + '\t' + term.name + ' (' + str(len(genes)) + ')\t' + '\t'.join(genes)
         f.close()
 
+    def print_to_mat_file(self, out_file, terms=None, p_namespace=None):
+        logger.info('print_to_mat_file')
+        tlist = self.get_termobject_list(terms=terms, p_namespace=p_namespace)
+        tlist.sort()
+        f = open(out_file, 'w')
+
+        allgenes = set()
+        genedict = defaultdict(set)
+        termlist = []
+        for term in tlist:
+            if len(term.annotations) == 0:
+                continue
+
+            termlist.append(term.go_id)
+
+            for annotation in term.annotations:
+                allgenes.add(annotation.gid)
+                genedict[annotation.gid].add(term.go_id)
+
+        print >> f, '\t' + '\t'.join(termlist)
+        for g in list(allgenes):
+            row = []
+            row.append(g)
+            for termid in termlist:
+                row.append( '1' if termid in genedict[g] else '0')
+            print >> f, '\t'.join(row)
+        f.close()
 
     # print each term ref IDs to a standard out
     def print_refids(self, terms=None, p_namespace=None):

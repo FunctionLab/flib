@@ -22,7 +22,7 @@ def learn(job=None, job_name=None, global_answers=None, holdout=None, counter=No
                 ' -o ' + working + '/' + \
                 ' -Z ' + zeros
     job.set_name_command(job_name + '-global-learn', cmdline)
-    learn_jobs.append(job.submit(os.path.join(working, 'global-learn.pbs')))
+    learn_jobs.append(job.submit(os.path.join(working, 'global-learn.sh')))
 
     for standard in standards:
         cmdline = counter + ' -w ' + stddir + '/' + standard + '.dab' + \
@@ -33,7 +33,7 @@ def learn(job=None, job_name=None, global_answers=None, holdout=None, counter=No
         if holdout is not None:
             cmdline += ' -G ' + holdout
         job.set_name_command(job_name + '-' + standard + '-learn', cmdline)
-        learn_jobs.append(job.submit(os.path.join(working, standard + '-learn.pbs')))
+        learn_jobs.append(job.submit(os.path.join(working, standard + '-learn.sh')))
     job.set_depends(None)
     return learn_jobs
 
@@ -51,7 +51,7 @@ def networks(job=None, job_name=None, counter=None, data=None, working=None, alp
         os.system("ls " + stddir + "/*\.dab | perl -pe 's/.*\/(.*)\.dab/$.\t$+\t$+/' > " + working + "/contexts.txt")
         cmdline = cmdline + " -X " + working + "/contexts.txt"
     job.set_name_command(job_name + '-NetBin', cmdline)
-    networks_job = job.submit(working+'/NetBin.pbs')
+    networks_job = job.submit(working+'/NetBin.sh')
     job.set_depends(None)
     return [networks_job,]
 
@@ -78,7 +78,7 @@ def predict(job=None, job_name=None, counter=None, data=None, working=None, geno
             job_cmd = cmdline + ' -t ' + str(job_thds) + ' ' + ' '.join(job_ctxts)
             job.ppn = job_thds
             job.set_name_command(job_name + '-CtxtPred', job_cmd)
-            predict_jobs.append(job.submit(os.path.join(working, 'CtxtLearn' + str(contexts_submitted) + '.pbs')))
+            predict_jobs.append(job.submit(os.path.join(working, 'CtxtLearn' + str(contexts_submitted) + '.sh')))
             contexts_submitted += job_thds
             job.ppn = 1
     job.set_depends(None)
@@ -103,7 +103,7 @@ def dcheck(job=None, job_name=None, holdout=None, dchecker=None, answers=None, w
         dchecks_str += job_cmd + '\n'
     #nasty hack for DISCOVERY, writes all commands to one pbs script
     job.set_name_command(job_name + '-DChk', dchecks_str)
-    dcheck_jobs.append(job.submit(os.path.join(working, 'Dchk.pbs')))
+    dcheck_jobs.append(job.submit(os.path.join(working, 'Dchk.sh')))
     job.set_depends(None)
     return dcheck_jobs
 
@@ -270,6 +270,9 @@ job = None
 if options.queue == 'discovery':
     from pbsjob import PBSJob
     job = PBSJob(addr=options.email, command="echo test", walltime="47:59:00", queue="largeq")
+elif options.queue == 'slurm':
+    from slurmjob import SLURMJob
+    job = SLURMJob(addr=options.email, command="echo test", walltime="24:00:00", queue="1day", workdir=options.workdir)
 else:
     sys.stderr.write("Unknown queue '" + options.queue + "' -- Is there an implemented job interface for this queue?")
     sys.exit()
