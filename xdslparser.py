@@ -127,7 +127,8 @@ if __name__ == '__main__':
     usage = "usage: %prog [options]"
     parser = OptionParser(usage, version="%prog dev-unreleased")
     parser.add_option("-i", "--xdsl-file", dest="xdsl", help="XDSL file", metavar="FILE")
- 
+    parser.add_option("-o", "--out-file", dest="out", help="Output file", metavar="FILE")
+
     (options, args) = parser.parse_args()
 
     if options.xdsl is None:
@@ -136,6 +137,27 @@ if __name__ == '__main__':
         
     filename = options.xdsl     
     nodes = CptNodesHolder(filename=filename)
+    
+    if options.out:
+        out_file = open(options.out, 'w')
+        # such bad code...
+        dsets = nodes.get_nodes_ids()
+        for i in xrange(-1,7):
+            for dataset in dsets:
+                if i==-1:
+                    out_file.write(dataset + '_neg' + '\t')
+                    out_file.write(dataset + '_pos' + '\t')
+                else:
+                    node = nodes.get_node(dataset)
+                    probs = node.get_probabilities()
+                    if i < len(probs[1]):
+                        out_file.write(str(probs[0][i]) + '\t')
+                        out_file.write(str(probs[1][i]) + '\t')
+                    else:
+                        out_file.write('NA\tNA\t')
+
+            out_file.write('\n')
+        out_file.close()
 
     for s in nodes.get_nodes_ids():
         node = nodes.get_node(s)
@@ -146,3 +168,4 @@ if __name__ == '__main__':
             llsum += abs(befs[i])
 
         print s, llsum
+
