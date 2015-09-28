@@ -57,7 +57,6 @@ class dat:
 		return self.gene_list[id]
 
 	def get_value(self, gene1, gene2):
-
 		g1 = min( gene1, gene2 )
 		g2 = max( gene1, gene2 )
 
@@ -71,9 +70,13 @@ class dat:
 
 		return v
 
+        def get_scaled_value(self, gene1, gene2, prior_new, prior_old):
+            r = prior_new / prior_old
+            r_diff = (1-prior_new) / (1-prior_old)
+            weight = self.get_value(gene1, gene2)
+            return (weight * r) / (weight * r + (1-weight) * r_diff)
 
-
-	def get_index(self, gene):
+        def get_index(self, gene):
 		try:
 			return self.gene_index[gene]
 		except KeyError:
@@ -115,6 +118,45 @@ class dat:
 			if self.get_value(gene_id, i) > cutoff:
 				neighbors.add(self.gene_list[i]) 
 		return neighbors
+
+        def get_all_neighbor_vals(self, gene_id):
+            vals = list()
+            #gene_id = self.get_index(gene_str)
+            if gene_id is None:
+                return vals
+
+            for i in xrange(gene_id):
+                vals.append(self.get_value(gene_id, i))
+            for i in xrange(gene_id+1, self.get_size()):
+                vals.append(self.get_value(gene_id, i))
+
+            return vals
+
+
+        def get_all_scaled_neighbor_vals(self, gene_id, prior_new, prior_old):
+            vals = list()
+            if gene_id is None:
+                return vals
+
+            for i in xrange(gene_id):
+                vals.append(self.get_scaled_value(gene_id, i, prior_new, prior_old))
+            for i in xrange(gene_id+1, self.get_size()):
+                vals.append(self.get_scaled_value(gene_id, i, prior_new, prior_old))
+
+            return vals
+
+        def get_all_neighbor_val_dict(self, gene_id):
+            n_vals = dict()
+
+            if gene_id is None:
+                return n_vals
+
+            for i in xrange(gene_id):
+                n_vals[i] = self.get_value(gene_id, i)
+            for i in xrange(gene_id+1, self.get_size()):
+                n_vals[i] = self.get_value(gene_id, i)
+
+            return n_vals
 
         def get(self, gene_str):
 		vals = []
