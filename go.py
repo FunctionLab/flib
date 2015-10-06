@@ -7,6 +7,7 @@ logger.setLevel(logging.ERROR)
 import re
 from collections import defaultdict
 from idmap import idmap
+import urllib2
 
 class go:
     heads = None
@@ -21,7 +22,7 @@ class go:
     """
     Pass the obo file
     """
-    def __init__(self, obo_file):
+    def __init__(self, obo_file=None):
         self.heads = []
         self.go_terms = {}
         self.alt_id2std_id = {}
@@ -29,10 +30,21 @@ class go:
         self.populated = False
         self.s_orgs = []
 
-        f = open(obo_file, 'r')
+        if obo_file:
+            load_obo(obo_file)
+
+    def load_obo(self, obo_file, remote_location=False, timeout=5):
+
+        if remote_location:
+            obo = urllib2.urlopen(obo_file,timeout=timeout)
+            lines = obo.readlines()
+        else:
+            f = open(obo_file, 'r')
+            lines = obo.readlines()
+
         inside = False
         gterm = None
-        for line in f:
+        for line in lines:
             fields = line.rstrip().split()
 
             if len(fields) < 1:
@@ -114,6 +126,8 @@ class go:
                 if len(tok) > 1:
                     (xrefdb, xrefid) = fields[1].split(':')[0:2]
                     gterm.xrefs.setdefault( xrefdb, set() ).add(xrefid)
+
+        return True
 
     """
     propagate all gene annotations
@@ -548,6 +562,14 @@ class go:
         f.close()
         self.populated = True
 
+    def add_annotation(self, go_id, gid, direct):
+        go_term = self.get_term(go_id)
+        if not go_term:
+            return False
+        annot = Annotation(xdb=None, gid=gid, direct=direct)
+        go_term.annotations.add(annot)
+        return True
+
 
     def populate_additional_taxon_specificity(self, ncbi_tax_obj, taxon_specificity_add_file, tag_tax_id):
         logger.info("Populate GO specificity: %s", taxon_specificity_add_file)
@@ -763,6 +785,7 @@ class go:
             if len(term.parent_of) == 0 and term.namespace == namespace and len(term.annotations) >= min_annot:
                 leaves.add(term)
         return leaves
+
 
 
 
