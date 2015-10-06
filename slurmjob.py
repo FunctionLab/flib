@@ -48,9 +48,6 @@ class SLURMJob:
     def write(self, filename):
         ofile = open(filename, 'w')
         ofile.write('#!/bin/bash\n')
-        #ofile.write('#PBS -N ' + str(self.name) + '\n')
-        #ofile.write('#PBS -q ' + str(self.queue) + '\n')
-        #ofile.write('#PBS -l nodes=' + str(self.nodes) + ':ppn=' + str(self.ppn) + '\n')
         ofile.write('#SBATCH --ntasks=1\n')
         ofile.write('#SBATCH --ntasks-per-node=1\n')
         ofile.write('#SBATCH --nodes=' + str(self.nodes) + '\n')

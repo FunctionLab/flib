@@ -101,7 +101,7 @@ class go:
             elif inside and fields[0] == 'xref:':
                 tok = fields[1].split(':')
                 if len(tok) > 1:
-                    (xrefdb, xrefid) = fields[1].split(':')
+                    (xrefdb, xrefid) = fields[1].split(':')[0:2]
                     gterm.xrefs.setdefault( xrefdb, set() ).add(xrefid)
 
     """

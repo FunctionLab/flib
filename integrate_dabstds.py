@@ -78,7 +78,7 @@ def predict(job=None, job_name=None, counter=None, data=None, working=None, geno
             job_cmd = cmdline + ' -t ' + str(job_thds) + ' ' + ' '.join(job_ctxts)
             job.ppn = job_thds
             job.set_name_command(job_name + '-CtxtPred', job_cmd)
-            predict_jobs.append(job.submit(os.path.join(working, 'CtxtLearn' + str(contexts_submitted) + '.sh')))
+            predict_jobs.append(job.submit(os.path.join(working, 'CtxtPred' + str(contexts_submitted) + '.sh')))
             contexts_submitted += job_thds
             job.ppn = 1
     job.set_depends(None)
@@ -298,7 +298,7 @@ if options.predict:
 if options.dcheck:
     depend_jobs = dcheck(job=job, job_name='all', dchecker=binaries['DChecker'], answers=options.answers, working=os.path.join(options.workdir, 'all'), standards=standards, stddir=options.stddir, depends=depend_jobs)
 
-"""
+
 for interval in intervals:
     job_name = 'cv' + str(interval)
     holdout = os.path.join(int_dir, str(interval) + '.txt')
@@ -314,4 +314,4 @@ for interval in intervals:
     if options.dcheck:
         depend_jobs = dcheck(job, job_name, holdout, binaries['DChecker'], options.answers, os.path.join(options.workdir, str(interval)), contexts, options.contdir, options.extra, depends=depend_jobs)
 
-"""
+
