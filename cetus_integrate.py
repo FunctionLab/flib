@@ -37,6 +37,38 @@ parser.add_option("-c", "--contexts-directory",
                         dest="contdir",
                         help="Directory where contexts files are located",
                         metavar="string")
+parser.add_option("-q", "--context-pos",
+			dest="ctxtpos",
+			help="Use positive edges between context genes (default=on)",
+			action="store_false", default=True)
+parser.add_option("-Q", "--context-neg",
+			dest="ctxtneg",
+			help="Use negative edges between context genes (default=on)",
+			action="store_false", default=True)
+parser.add_option("-j", "--bridge-pos",
+			dest="bridgepos",
+			help="Use bridging positives between context and non-context genes (default=off)",
+			action="store_true", default=False)
+parser.add_option("-J", "--bridge-neg",
+			dest="bridgeneg",
+			help="Use bridging negatives between context and non-context genes (default=on)",
+			action="store_false", default=True)
+parser.add_option("-W", "--weights-file",
+                        dest="weights",
+                        help="Weighted context file (for weighted Counter)",
+                        metavar="FILE")
+parser.add_option("-F", "--flipneg-flag",
+                        dest="flipneg",
+                        help="Flip weights (one minus original) for negative standards (default=on)",
+                        action="store_false", default=True)
+parser.add_option("-N", "--noweightneg-flag",
+                        dest="noweightneg",
+                        help="Use weight one for all negative standards (when using weight file, default=off)",
+                        action="store_true", default=False)
+parser.add_option("-m", "--multiplier",
+                        dest="multiplier",
+                        help="multiplier used for weighting (default = 1)",
+                        type="int", default=1)
 parser.add_option("-t", "--threads-per",
                         dest="job_threads",
                         help="Number of threads per job",
@@ -73,6 +105,9 @@ parser.add_option("-K", "--dcheck", dest = "dcheck", help = "DCheck " \
 parser.add_option("-D", "--delete-contexts-flag", dest = "del_ctxt", 
             help = "Delete context integrations after combinining",
             action="store_true", default=False)
+parser.add_option("-L", "--log-dir", dest="log_dir",
+                        help="directory to put qsub files",
+                        type="string",metavar="DIRECTORY", default=".")
 
 
 (options, args) = parser.parse_args()
@@ -92,14 +127,27 @@ if options.sleipnir is not None:
     for tool in binaries:
         binaries[tool] = options.sleipnir + '/' + binaries[tool]
 
+# Establish output file directory
+out_dir = options.workdir
+if options.log_dir is not None:
+    out_dir = options.log_dir
+
 #Make global network.
 cmdline = binaries['Counter'] + ' -w ' + options.answers + \
                  ' -d ' + options.datadir + \
                  ' -o ' + options.workdir + '/' + \
                  ' -Z ' + options.zeros
+if options.weights is not None:
+   cmdline = cmdline + ' -W ' + options.weights
+   if options.flipneg is not True:
+       cmdline = cmdline + ' -F '
+   if options.multiplier is not None:
+       cmdline = cmdline + ' -f ' + str(options.multiplier)
+   if options.noweightneg is True:
+       cmdline = cmdline + ' -N '
 stdout = Popen('qsub -wd ' + options.workdir + \
                ' -N GlobalCounts -j y ' \
-               '-o ' + options.workdir + '/ '\
+               '-o ' + out_dir + '/ '\
                '-l gb=' + str(gb_per) + \
                ' "' + cmdline + '"',\
                shell=True, stdout=PIPE).stdout.read()
@@ -120,18 +168,31 @@ if options.contdir is not None:
               ' -d ' + options.datadir + \
               ' -o ' + options.workdir + '/counts/' + \
               ' -Z ' + options.zeros
+    if not options.ctxtpos:
+        cmdline = cmdline + ' -q '
+    if not options.ctxtneg:
+        cmdline = cmdline + ' -Q '
+    if options.bridgepos:
+        cmdline = cmdline + ' -j '
+    if not options.bridgeneg:
+        cmdline = cmdline + ' -J ' 
     contexts_submitted = 0
     while contexts_submitted < len(contexts):
         job_ctxts = contexts[contexts_submitted:(contexts_submitted + options.job_threads)]
         job_thds = len(job_ctxts)
         job_cmd = cmdline + ' -t ' + str(job_thds) + ' ' + ' '.join([options.contdir + '/' + context for context in job_ctxts])
-        stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtCounts -j y -o ' + options.workdir + '/ -l gb=' + str(gb_per * job_thds) + ' -l job_capacity=' + str(job_thds) + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
+        stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtCounts -j y -o ' + out_dir + '/ -l gb=' + str(gb_per * job_thds) + ' -l job_capacity=' + str(job_thds) + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
         ctxt_jobs.append(job_queue_id.search(stdout).group('job_id'))
         contexts_submitted += job_thds
 
 #Make networks.bin file
 os.system("ls " + options.datadir + "/*dab | perl -pe 's/.*\/(.*)\.q?dab/$.\t$+/' > " + options.workdir + "/datasets.txt")
-cmdline = binaries['Counter'] + " -k " + options.workdir + '/counts/ -o ' + options.workdir + '/networks.bin -s ' + options.workdir + '/datasets.txt -b ' + options.workdir + '/global.txt'
+cmdline = binaries['Counter'] + " -k " + options.workdir + '/counts/ -o ' + options.workdir + '/networks.bin -s ' + options.workdir + '/datasets.txt' 
+if options.weights:
+    weights_file = os.path.basename(options.weights)
+    cmdline = cmdline + ' -b ' + options.workdir + '/' + weights_file[0:len(weights_file)-4] + '.txt'
+else:
+    cmdline = cmdline + ' -b ' + options.workdir + '/global.txt'
 #Regularization
 if options.alphas is not None:
     cmdline = cmdline + " -a " + options.alphas + " -p " + str(options.pseudo)
@@ -140,7 +201,7 @@ if options.contdir is not None:
     depends += ',' + ','.join(ctxt_jobs)
     os.system("ls " + options.contdir + "/* | perl -pe 's/.*\/(.*)/$.\t$+\t$+/' > " + options.workdir + "/contexts.txt")
     cmdline = cmdline + " -X " + options.workdir + "/contexts.txt"
-stdout = Popen('qsub -wd ' + options.workdir + ' -N NetworksBin -j y -o ' + options.workdir + '/ -hold_jid ' + depends + ' -l 1hr "' + cmdline + '"', shell=True, stdout=PIPE).stdout.read()
+stdout = Popen('qsub -wd ' + options.workdir + ' -N NetworksBin -j y -o ' + out_dir + '/ -hold_jid ' + depends + ' -l 1hr "' + cmdline + '"', shell=True, stdout=PIPE).stdout.read()
 networks_job = job_queue_id.search(stdout).group('job_id')
 
 #Make global predictions
@@ -149,7 +210,7 @@ try:
 except OSError:
     pass
 cmdline = binaries['Counter'] + " -n " + options.workdir + '/networks.bin -s ' + options.workdir + '/datasets.txt -d ' + options.datadir + ' -e ' + options.gfile + ' -o ' + options.workdir + '/predictions' + ' -Z ' + options.zeros
-stdout = Popen('qsub -wd ' + options.workdir + ' -N GlobalPred -j y -o ' + options.workdir + '/ -hold_jid ' + networks_job + ' -l gb=' + str(gb_per) + ' "' + cmdline + '"', shell=True, stdout=PIPE).stdout.read()
+stdout = Popen('qsub -wd ' + options.workdir + ' -N GlobalPred -j y -o ' + out_dir + '/ -hold_jid ' + networks_job + ' -l gb=' + str(gb_per) + ' "' + cmdline + '"', shell=True, stdout=PIPE).stdout.read()
 glob_pred_job = job_queue_id.search(stdout).group('job_id')
 if options.contdir is not None:
     contexts_submitted = 0
@@ -158,7 +219,7 @@ if options.contdir is not None:
         job_ctxts = contexts[contexts_submitted:(contexts_submitted + options.job_threads)]
         job_thds = len(job_ctxts)
         job_cmd = cmdline + ' -t ' + str(job_thds) + ' ' + ' '.join([options.contdir + '/' + context for context in job_ctxts])
-        stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtPred -j y -o ' + options.workdir + '/ -hold_jid ' + networks_job + ' -l gb=' + str(gb_per * job_thds) + ' -l job_capacity=' + str(job_thds) + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
+        stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtPred -j y -o ' + out_dir + '/ -hold_jid ' + networks_job + ' -l gb=' + str(gb_per * job_thds) + ' -l job_capacity=' + str(job_thds) + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
         ctxt_jobs.append(job_queue_id.search(stdout).group('job_id'))
         contexts_submitted += job_thds
 
@@ -170,8 +231,17 @@ if options.holdout is not None and options.dcheck:
         pass
     depends = glob_pred_job + ',' + ','.join(ctxt_jobs)
     for context in contexts:
-        job_cmd = binaries['DChecker'] + ' -i ' + options.workdir + '/predictions/' + context + '.dab -w ' + options.holdout + ' -l ' + options.contdir + '/' + context + ' > ' + options.workdir + '/dcheck/' + context + '.auc'
-        stdout = Popen('qsub -wd ' + options.workdir + ' -N DChecker -j y -o ' + options.workdir + '/ -hold_jid ' + depends + ' -l 1hr "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
+        job_cmd = binaries['DChecker'] + ' -i ' + options.workdir + '/predictions/' + context + '.dab -w ' + options.holdout + ' -c ' + options.contdir + '/' + context
+        if not options.ctxtpos:
+            job_cmd = job_cmd + ' -q '
+        if not options.ctxtneg:
+            job_cmd = job_cmd + ' -Q '
+        if options.bridgepos:
+            job_cmd = job_cmd + ' -j '
+        if not options.bridgeneg:
+            job_cmd = job_cmd + ' -J ' 
+        job_cmd = job_cmd + ' > ' + options.workdir + '/dcheck/' + context + '.auc'
+        stdout = Popen('qsub -wd ' + options.workdir + ' -N DChecker -j y -o ' + out_dir + '/ -hold_jid ' + depends + ' -l 1hr "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
         dcheck_jobs.append(job_queue_id.search(stdout).group('job_id'))
 
 if options.contdir is not None and options.combiner:
@@ -186,4 +256,4 @@ if options.contdir is not None and options.combiner:
 
     if options.del_ctxt:
         job_cmd = 'rm -fr ' + options.workdir + '/predictions/'
-        stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtRm -j y -o ' + options.workdir + '/ -hold_jid ' + combine_job + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()
+        stdout = Popen('qsub -wd ' + options.workdir + ' -N CtxtRm -j y -o ' + out_dir + '/ -hold_jid ' + combine_job + ' "' + job_cmd + '"', shell=True, stdout=PIPE).stdout.read()

@@ -25,6 +25,7 @@ class go:
         self.heads = []
         self.go_terms = {}
         self.alt_id2std_id = {}
+        self.name2synonyms = {}
         self.populated = False
         self.s_orgs = []
 
@@ -57,7 +58,9 @@ class go:
                 #print self.go_terms[fields[1]]
             elif inside and fields[0] == 'name:':
                 fields.pop(0)
+                gterm.fullname = ' '.join(fields)
                 name = '_'.join(fields)
+                name = name.replace('\'','')
                 name = re.sub('[^\w\s_-]', '_', name).strip().lower()
                 name = re.sub('[-\s_]+', '_', name)
                 gterm.name = name
@@ -92,12 +95,20 @@ class go:
                 elif fields[1] == 'part_of':
                     gterm.relationship_part_of.append(self.go_terms[pgo_id])
                 else:
-                    logger.info("Unkown relationship %s", self.go_terms[pgo_id].name)
+                    logger.info("Unknown relationship %s", self.go_terms[pgo_id].name)
                 self.go_terms[pgo_id].parent_of.add(gterm)
                 gterm.child_of.add(self.go_terms[pgo_id])
             elif inside and fields[0] == 'is_obsolete:':
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
+            elif inside and fields[0] == 'synonym:':
+                syn = ' '.join(fields[1:]).split('\"')[1]
+                syn = syn.replace('lineage name: ', '')
+                gterm.synonyms.append(syn)
+                if gterm.name in self.name2synonyms:
+                    self.name2synonyms[gterm.name].append(syn)
+                else:
+                    self.name2synonyms[gterm.name] = [syn]
             elif inside and fields[0] == 'xref:':
                 tok = fields[1].split(':')
                 if len(tok) > 1:
@@ -653,7 +664,9 @@ class go:
     def check_fringe(self, slim_file, namespace=None):
         leaf_tids = []
         slim_tids = []
-
+        
+        missing_leaves = open("leaves_missing_from_slim.txt", 'w')
+        missing_out = open("all_missing.txt", 'w')
         # add GO ids to the leaf terms
         for tid in self.go_terms.keys():
             leaf_term = self.go_terms[tid]
@@ -692,13 +705,19 @@ class go:
             for lgoterm in leaf_tids:
                 if lgoterm not in slim_tids:
                     logger.warning("Missing leaf terms: %s", lgoterm)
+                    missing_leaves.write(lgoterm + '\t' + gene_ontology.go_terms[lgoterm].name + '\n')
+                    missing_out.write(lgoterm + '\t' + gene_ontology.go_terms[lgoterm].name + '\n')
+                    miss_l_ancest = self.get_ancestors(lgoterm)
+                    for m in miss_l_ancest:
+                        missing_out.write(m + '\t' + gene_ontology.go_terms[m].name + '\n')
             return False
 
     """
     get propagated descendents of term
     """
     def get_descendents(self, gterm):
-	if not self.go_terms.has_key(gterm):
+
+        if not self.go_terms.has_key(gterm):
 	    return set()
 	term = self.go_terms[gterm]
 	
@@ -711,8 +730,8 @@ class go:
 		continue
 	    child_terms.add( child_term.go_id )
 	    child_terms = child_terms | self.get_descendents( child_term.go_id )
-
-	return child_terms
+	
+        return child_terms
 
     """
     get propagated ancestors of term 
@@ -804,6 +823,8 @@ class GOTerm:
     summary = None
     desc = None
     votes = None
+    synonyms = None
+    fullname = None
     xrefs = None
 
     def __init__(self, go_id):
@@ -824,6 +845,8 @@ class GOTerm:
         self.counts = None
         self.desc = None
         self.votes = set([])
+        self.synonyms = []
+        self.fullname = None
         self.xrefs = {}
 
     def __cmp__(self, other):
@@ -842,6 +865,9 @@ class GOTerm:
         mapped_annotations_set = set([])
         for annotation in self.annotations:
             mapped_genes = id_name.get(annotation.gid)
+            if mapped_genes == None and 'CELE_' in annotation.gid:
+                mapped_genes = id_name.get(annotation.gid[5:len(annotation.gid)])
+
             if mapped_genes == None:
                 logger.warning('No matching gene id: %s', annotation.gid)
                 continue
@@ -887,7 +913,7 @@ if __name__ == '__main__':
     parser.add_option("-d", "--output-prefix", dest="opref", help="prefix for output files", metavar="string")
     parser.add_option("-f", "--output-filename", dest="ofile", help="If given outputs all go term/gene annotation pairs to this file, file is created in the output prefix directory.", metavar="string")
     parser.add_option("-i", "--id-file", dest="idfile", help="file to map excisting gene ids to the desired identifiers in the format <gene id>\\t<desired id>\\n", metavar="FILE")
-    parser.add_option("-p", action="store_true", dest="progagate", help="Should we progagate gene annotations?")
+    parser.add_option("-p", action="store_true", dest="propagate", help="Should we progagate gene annotations?")
     parser.add_option("-P", "--prune", dest="prune", help="A python string that will be evaled to decide if a node should be pruned.  Available variables are 'total' and 'direct' which are the total number of annotations and the number of direct annotations.")
     parser.add_option("-t", "--slim-file", dest="slim", help="GO slim file contains GO terms to output, if not given outputs all GO terms", metavar="FILE")
     parser.add_option("-n", "--namespace", dest="nspace", help="limit the GO term output to the input namespace: (biological_process, cellular_component, molecular_function)", metavar="STRING")
@@ -895,7 +921,7 @@ if __name__ == '__main__':
     parser.add_option("-c", dest="check_fringe", action="store_true", help="Is the given slim file a true fringe in the given obo file?  Prints the result and exits.")
     parser.add_option("-j", "--json-file", dest="json", help="file to output ontology (as json) to.")
     parser.add_option("-A", dest="assoc_format", action="store_true", help="If we are printing to a file (-f), pass this to get a full association file back.")
-    parser.add_option("-l", dest="desc", action="store_true", help="Get descendents of terms")
+    parser.add_option("-l", dest="desc", action="store_true", help="Get descendents of terms") 
     (options, args) = parser.parse_args()
 
     if options.obo is None:
@@ -931,17 +957,18 @@ if __name__ == '__main__':
     if options.idfile is not None:
         gene_ontology.map_genes(id_name)
 
-    if options.progagate:
+    if options.propagate:
         gene_ontology.propagate()
-
-    if options.prune:
-        gene_ontology.prune(options.prune)
+    
+    if options.prune and not options.slim:
+        gene_ontology.prune(options.prune,)
 
     if options.json:
         jsonstr = gene_ontology.to_json()
         f = open(options.json, 'w')
         f.write(jsonstr)
         f.close()
+
 
     if options.slim:
         f = open(options.slim, 'r')
@@ -952,10 +979,18 @@ if __name__ == '__main__':
         f.close()
 
         if options.desc:
+            out = open('slim_descendents.txt', 'w')
             desc_terms = set()
             for term in gterms:
-                desc_terms |= gene_ontology.get_descendents(term)
+                cur_desc = set()
+                cur_desc |= gene_ontology.get_descendents(term)
+                desc_terms |= cur_desc
+                cur_desc.add(term)
                 desc_terms.add(term)
+                for cur_term in cur_desc:
+                    if cur_term in gene_ontology.go_terms:
+                        out.write(term + '\t' + gene_ontology.go_terms[term].name + '\t' + cur_term + '\t' + gene_ontology.go_terms[cur_term].name + '\n')
+                
             for term in desc_terms:
                 if term in gene_ontology.go_terms:
                     term = gene_ontology.go_terms[term]
@@ -976,4 +1011,4 @@ if __name__ == '__main__':
             gene_ontology.print_to_single_file(options.opref + '/' + options.ofile, None, options.nspace, options.assoc_format)
         else:
             gene_ontology.print_terms(options.opref, None, options.nspace)
-
+   
