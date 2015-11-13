@@ -562,7 +562,7 @@ class go:
         f.close()
         self.populated = True
 
-    def add_annotation(self, go_id, gid, direct):
+    def add_annotation(self, go_id, gid, ref, direct):
         go_term = self.get_term(go_id)
         if not go_term:
             return False
