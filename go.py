@@ -31,7 +31,7 @@ class go:
         self.s_orgs = []
 
         if obo_file:
-            load_obo(obo_file)
+            self.load_obo(obo_file)
 
     def load_obo(self, obo_file, remote_location=False, timeout=5):
 
@@ -39,7 +39,7 @@ class go:
             obo = urllib2.urlopen(obo_file,timeout=timeout)
             lines = obo.readlines()
         else:
-            f = open(obo_file, 'r')
+            obo = open(obo_file, 'r')
             lines = obo.readlines()
 
         inside = False
