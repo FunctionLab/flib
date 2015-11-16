@@ -25,6 +25,7 @@ class go:
     def __init__(self, obo_file=None):
         self.heads = []
         self.go_terms = {}
+        self.go_obsolete = {}
         self.alt_id2std_id = {}
         self.name2synonyms = {}
         self.populated = False
@@ -113,6 +114,8 @@ class go:
             elif inside and fields[0] == 'is_obsolete:':
                 gterm.head = False
                 del self.go_terms[gterm.get_id()]
+                gterm.obsolete = True
+                self.go_obsolete[gterm.get_id()] = gterm
             elif inside and fields[0] == 'synonym:':
                 syn = ' '.join(fields[1:]).split('\"')[1]
                 syn = syn.replace('lineage name: ', '')
@@ -366,6 +369,10 @@ class go:
                 continue
             reterms.append(obo_term)
         return reterms
+
+    def get_obsolete_terms(self, p_namespace = None):
+        logger.info('get_obsolete_list')
+        return self.go_obsolete.values()
 
     def get_termdict_list(self, terms=None, p_namespace=None):
         logger.info('get_termdict_list')
@@ -849,6 +856,7 @@ class GOTerm:
     synonyms = None
     fullname = None
     xrefs = None
+    obsolete = None 
 
     def __init__(self, go_id):
         self.head = True
@@ -871,6 +879,7 @@ class GOTerm:
         self.synonyms = []
         self.fullname = None
         self.xrefs = {}
+        self.obsolete = False
 
     def __cmp__(self, other):
         return cmp(self.go_id, other.go_id)
