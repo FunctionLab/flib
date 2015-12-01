@@ -30,6 +30,7 @@ class go:
         self.name2synonyms = {}
         self.populated = False
         self.s_orgs = []
+        self.__meta = {}
 
         if obo_file:
             self.load_obo(obo_file)
@@ -50,6 +51,12 @@ class go:
 
             if len(fields) < 1:
                 continue
+
+            elif not inside and not len(self.go_terms.keys()) and len(fields) > 1:
+                key = fields[0]
+                if key.endswith(':'):
+                    key = key[:-1]
+                self.__meta[key] = fields[1]
             elif fields[0] == '[Term]':
                 if gterm:
                     if gterm.head:
@@ -355,6 +362,12 @@ class go:
             except KeyError:
                 logger.error('Term name does not exist: %s', tid)
         return term
+
+    def get_meta_data(self, key):
+        if key in self.__meta:
+            return self.__meta[key]
+        else:
+            return None
 
     def get_termobject_list(self, terms=None, p_namespace=None):
         logger.info('get_termobject_list')
