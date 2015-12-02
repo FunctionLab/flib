@@ -946,6 +946,12 @@ class GOTerm:
     def get_namespace(self):
         return self.namespace
 
+    def get_xrefs(self, dbid):
+        if dbid in self.xrefs:
+            return self.xrefs[dbid]
+        else:
+            return None
+
 if __name__ == '__main__':
     from optparse import OptionParser
 
