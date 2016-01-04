@@ -586,7 +586,7 @@ class go:
         go_term = self.get_term(go_id)
         if not go_term:
             return False
-        annot = Annotation(xdb=None, gid=gid, direct=direct)
+        annot = Annotation(xdb=None, gid=gid, direct=direct, ref=ref)
         go_term.annotations.add(annot)
         return True
 
