@@ -165,7 +165,8 @@ if __name__ == '__main__':
 
         llsum = 0
         for i in range(len(befs)):
-            llsum += abs(befs[i])
+            llsum += (befs[i])
 
-        print s, llsum
+        if max(befs) > 0:
+            print s, llsum, [x for x in befs if x > 0]
 
