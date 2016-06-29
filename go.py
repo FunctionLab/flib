@@ -116,6 +116,7 @@ class go:
                     gterm.relationship_part_of.append(self.go_terms[pgo_id])
                 else:
                     logger.info("Unknown relationship %s", self.go_terms[pgo_id].name)
+                    continue
                 self.go_terms[pgo_id].parent_of.add(gterm)
                 gterm.child_of.add(self.go_terms[pgo_id])
             elif inside and fields[0] == 'is_obsolete:':
