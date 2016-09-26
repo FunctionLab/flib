@@ -1,10 +1,16 @@
 #!/usr/bin/python
 
+from __future__ import division
+from __future__ import print_function
+from builtins import str
+from builtins import range
+from builtins import object
+
 import sys
 import array
 import struct
 
-class dat:
+class dat(object):
     def __init__(self,filename):
         self.gene_list=[]
         self.gene_table={}
@@ -43,7 +49,7 @@ class dat:
             end+=1
 
         #get half matrix values
-        total=(size*(size-1))/2
+        total = size * (size-1) // 2
         dab_file.seek(start)
         self.dat = array.array('f')
         self.dat.fromfile(dab_file,total)
@@ -65,7 +71,7 @@ class dat:
         try:
             v= self.dat[int(start)]
         except IndexError:
-            print 'Error: ', start, gene1, gene2
+            print('Error: ', start, gene1, gene2)
             exit()
 
         return v
@@ -74,7 +80,7 @@ class dat:
         r = prior_new / prior_old
         r_diff = (1-prior_new) / (1-prior_old)
         weight = self.get_value(gene1, gene2)
-        return (weight * r) / (weight * r + (1-weight) * r_diff)
+        return weight * r / (weight * r + (1-weight) * r_diff)
 
     def get_index(self, gene):
         try:
@@ -88,7 +94,7 @@ class dat:
     def print_table(self, out_file=sys.stdout):
         cols = ['GENE']
         cols.extend(self.gene_list)
-        print >> out_file, "\t".join(cols)
+        print("\t".join(cols), file=out_file)
 
         for i in range(0,self.get_size()):
             line=[]
@@ -101,12 +107,12 @@ class dat:
                 v = self.get_value(i,j)
                 line.append(str(v))
 
-            print >> out_file, "\t".join(line)
+            print("\t".join(line), file=out_file)
 
     def print_flat(self, out_file=sys.stdout):
         for i in range(0,self.get_size()):
             for j in range(i+1, self.get_size()):
-                print >> out_file, self.gene_list[i] + '\t' + self.gene_list[j] + '\t' + str(self.get_value(i, j))
+                print(self.gene_list[i] + '\t' + self.gene_list[j] + '\t' + str(self.get_value(i, j)), file=out_file)
 
 
     def get_neighbors(self, gene_str, cutoff):
@@ -125,9 +131,9 @@ class dat:
         if gene_id is None:
             return vals
 
-        for i in xrange(gene_id):
+        for i in range(gene_id):
             vals.append(self.get_value(gene_id, i))
-        for i in xrange(gene_id+1, self.get_size()):
+        for i in range(gene_id+1, self.get_size()):
             vals.append(self.get_value(gene_id, i))
 
         return vals
@@ -138,9 +144,9 @@ class dat:
         if gene_id is None:
             return vals
 
-        for i in xrange(gene_id):
+        for i in range(gene_id):
             vals.append(self.get_scaled_value(gene_id, i, prior_new, prior_old))
-        for i in xrange(gene_id+1, self.get_size()):
+        for i in range(gene_id+1, self.get_size()):
             vals.append(self.get_scaled_value(gene_id, i, prior_new, prior_old))
 
         return vals
@@ -151,9 +157,9 @@ class dat:
         if gene_id is None:
             return n_vals
 
-        for i in xrange(gene_id):
+        for i in range(gene_id):
             n_vals[i] = self.get_value(gene_id, i)
-        for i in xrange(gene_id+1, self.get_size()):
+        for i in range(gene_id+1, self.get_size()):
             n_vals[i] = self.get_value(gene_id, i)
 
         return n_vals
