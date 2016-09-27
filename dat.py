@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class dat(object):
+
     def __init__(self, filename):
         self.gene_list = []
         self.gene_table = {}
@@ -40,16 +41,16 @@ class dat(object):
         while count < size:
             dab_file.seek(end)
             chrs = dab_file.read(2)
-            if(chrs == b'\x00\x00'):
+            if chrs == b'\x00\x00':
                 dab_file.seek(start)
 
-                gene = str(dab_file.read(end-start))
+                gene = str(dab_file.read(end - start))
                 gene = gene.strip()
 
                 self.gene_list.append(gene)
                 self.gene_table[gene] = count
 
-                start = end+2
+                start = end + 2
                 count += 1
                 end += 1
             if not count % 5000 and start == end:  # Read 5k and on to next set
@@ -57,7 +58,7 @@ class dat(object):
             end += 1
 
         # get half matrix values
-        total = size * (size-1) // 2
+        total = size * (size - 1) // 2
         dab_file.seek(start)
         self.dat = array.array('f')
         self.dat.fromfile(dab_file, total)
@@ -75,8 +76,8 @@ class dat(object):
         g2 = max(gene1, gene2)
 
         # index of first id
-        start = self.arith_sum((len(self.gene_list))-g1,
-                               (len(self.gene_list)-1))
+        start = self.arith_sum((len(self.gene_list)) - g1,
+                               (len(self.gene_list) - 1))
         start += (g2 - g1) - 1  # index of second id
         try:
             v = self.dat[int(start)]
@@ -88,9 +89,9 @@ class dat(object):
 
     def get_scaled_value(self, gene1, gene2, prior_new, prior_old):
         r = prior_new / prior_old
-        r_diff = (1-prior_new) / (1-prior_old)
+        r_diff = (1 - prior_new) / (1 - prior_old)
         weight = self.get_value(gene1, gene2)
-        return weight * r / (weight * r + (1-weight) * r_diff)
+        return weight * r / (weight * r + (1 - weight) * r_diff)
 
     def get_index(self, gene):
         try:
@@ -99,7 +100,7 @@ class dat(object):
             return None
 
     def arith_sum(self, x, y):
-        return .5 * (y-x+1) * (x+y)
+        return .5 * (y - x + 1) * (x + y)
 
     def print_table(self, out_file=sys.stdout):
         cols = ['GENE']
@@ -113,7 +114,7 @@ class dat(object):
                 v = self.get_value(i, j)
                 line.append(str(v))
             line.append("1")
-            for j in range(i+1, self.get_size()):
+            for j in range(i + 1, self.get_size()):
                 v = self.get_value(i, j)
                 line.append(str(v))
 
@@ -121,7 +122,7 @@ class dat(object):
 
     def print_flat(self, out_file=sys.stdout):
         for i in range(0, self.get_size()):
-            for j in range(i+1, self.get_size()):
+            for j in range(i + 1, self.get_size()):
                 print(self.gene_list[i] + '\t' +
                       self.gene_list[j] + '\t' + str(self.get_value(i, j)),
                       file=out_file)
@@ -144,7 +145,7 @@ class dat(object):
 
         for i in range(gene_id):
             vals.append(self.get_value(gene_id, i))
-        for i in range(gene_id+1, self.get_size()):
+        for i in range(gene_id + 1, self.get_size()):
             vals.append(self.get_value(gene_id, i))
 
         return vals
@@ -157,7 +158,7 @@ class dat(object):
         for i in range(gene_id):
             vals.append(self.get_scaled_value(gene_id, i, prior_new,
                                               prior_old))
-        for i in range(gene_id+1, self.get_size()):
+        for i in range(gene_id + 1, self.get_size()):
             vals.append(self.get_scaled_value(gene_id, i, prior_new,
                                               prior_old))
 
@@ -171,7 +172,7 @@ class dat(object):
 
         for i in range(gene_id):
             n_vals[i] = self.get_value(gene_id, i)
-        for i in range(gene_id+1, self.get_size()):
+        for i in range(gene_id + 1, self.get_size()):
             n_vals[i] = self.get_value(gene_id, i)
 
         return n_vals
@@ -182,15 +183,15 @@ class dat(object):
         if idx is None:
             return vals
         for i in range(0, idx):
-            start = self.arith_sum((len(self.gene_list))-i,
-                                   (len(self.gene_list)-1))
-            start += (idx-i)-1
+            start = self.arith_sum((len(self.gene_list)) - i,
+                                   (len(self.gene_list) - 1))
+            start += (idx - i) - 1
             v = self.dat[int(start)]
             vals.append(v)
-        start = self.arith_sum((len(self.gene_list))-idx,
-                               (len(self.gene_list)-1))
+        start = self.arith_sum((len(self.gene_list)) - idx,
+                               (len(self.gene_list) - 1))
         start -= 1
-        vals += self.dat[int(start):int(start)+len(self.gene_list)-idx]
+        vals += self.dat[int(start):int(start) + len(self.gene_list) - idx]
 
         return vals
 
