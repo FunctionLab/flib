@@ -210,12 +210,13 @@ if __name__ == '__main__':
     parser.add_argument('-V', '--version', action='version',
                         version="%(prog)s dev-unreleased")
     args = parser.parse_args()
-    print(args)
 
     if args.verbose:  # Setup logging at desired level
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.WARNING)
+
+    logger.debug("Args: %s", args)
 
     if args.dab is None:
         sys.stderr.write("--dab file is required.\n")
