@@ -8,6 +8,9 @@ from builtins import object
 
 import sys
 import array
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class dat(object):
@@ -18,25 +21,29 @@ class dat(object):
         self.gene_index = {}
         for i in range(len(self.gene_list)):
             self.gene_index[self.gene_list[i]] = i
+        logger.debug("Got %s genes.", len(self.gene_list))
 
     def open_file(self, filename):
+        logger.debug("Opening %s", filename)
         dab_file = open(filename, 'rb')
 
         # get number of genes
         a = array.array('I')
         a.fromfile(dab_file, 1)
         size = a[0]
+        logger.debug("Expecting %s genes.", size)
 
         # get gene names
         start = 4
         end = 4
         count = 0
-        while count < a[0]:
+        while count < size:
             dab_file.seek(end)
-            if(dab_file.read(2) == '\0\0'):
+            chrs = dab_file.read(2)
+            if(chrs == b'\x00\x00'):
                 dab_file.seek(start)
 
-                gene = dab_file.read(end-start+1)
+                gene = str(dab_file.read(end-start+1))
                 gene = gene.strip()
                 gene = gene.replace('\x00', '')
 
@@ -46,6 +53,8 @@ class dat(object):
                 start = end+2
                 count += 1
                 end += 1
+            if not count % 5000 and start == end:  # Read 5k and on to next set
+                logger.debug("Read %s gene names.", count)
             end += 1
 
         # get half matrix values
@@ -188,32 +197,42 @@ class dat(object):
 
 
 if __name__ == '__main__':
-    from optparse import OptionParser
+    from argparse import ArgumentParser
 
-    usage = "usage: %prog [options]"
-    parser = OptionParser(usage, version="%prog dev-unreleased")
-    parser.add_option("-i", "--dab-file", dest="dab", help="DAB file",
-                      metavar="FILE")
-    parser.add_option("-o", "--output-file", dest="out",
-                      help="Output file (DAT or PCL)", metavar="FILE")
+    usage = "usage: %(prog)s [options]"
+    parser = ArgumentParser(prog=usage)
+    parser.add_argument("-i", "--dab-file", dest="dab", help="DAB file",
+                        metavar="FILE")
+    parser.add_argument("-o", "--output-file", dest="out",
+                        help="Output file (DAT or PCL)", metavar="FILE")
+    parser.add_argument("-v", "--verbose", dest="verbose", action='store_true',
+                        help="output debug loglevel")
+    parser.add_argument('-V', '--version', action='version',
+                        version="%(prog)s dev-unreleased")
+    args = parser.parse_args()
 
-    (options, args) = parser.parse_args()
+    if args.verbose:  # Setup logging at desired level
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
-    if options.dab is None:
+    logger.debug("Args: %s", args)
+
+    if args.dab is None:
         sys.stderr.write("--dab file is required.\n")
         sys.exit()
-    pcl_out = options.out.endswith('.pcl')
-    dat_out = options.out.endswith('.dat')
-    if options.out is not None and not pcl_out and not dat_out:
-        sys.stderr.write("Unknown file format for: " + options.out + "\n")
+    pcl_out = args.out.endswith('.pcl')
+    dat_out = args.out.endswith('.dat')
+    if args.out is not None and not pcl_out and not dat_out:
+        sys.stderr.write("Unknown file format for: " + args.out + "\n")
         sys.exit()
 
-    dab = dat(options.dab)
+    dab = dat(args.dab)
 
-    if options.out is None:
+    if args.out is None:
         dab.print_table()
     else:
-        ofile = open(options.out, 'w')
+        ofile = open(args.out, 'w')
         if pcl_out:
             dab.print_table(ofile)
         elif dat_out:
