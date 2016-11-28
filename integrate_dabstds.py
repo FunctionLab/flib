@@ -21,6 +21,10 @@ def learn(job=None, job_name=None, global_answers=None, holdout=None, counter=No
                 ' -d ' + data + \
                 ' -o ' + working + '/' + \
                 ' -Z ' + zeros
+
+    if holdout is not None:
+        cmdline += ' -G ' + holdout
+
     job.set_name_command(job_name + '-global-learn', cmdline)
     learn_jobs.append(job.submit(os.path.join(working, 'global-learn.sh')))
 
@@ -67,6 +71,8 @@ def predict(job=None, job_name=None, counter=None, data=None, working=None, geno
         pass
 
     cmdline = counter + " -n " + working + '/networks.bin -s ' + working + '/datasets.txt -d ' + data + ' -e ' + genome + ' -o ' + working + '/predictions' + ' -Z ' + zeros
+    job.set_name_command(job_name + '-GlobalPred', cmdline)
+    predict_jobs.append(job.submit(os.path.join(working, 'GlobalPredict.sh')))
 
     #run context predict
     if standards is not None:
@@ -101,7 +107,7 @@ def dcheck(job=None, job_name=None, holdout=None, dchecker=None, answers=None, w
             job_cmd += ' -g ' + holdout
         job_cmd += ' > ' + working + '/dcheck/' + context + '.auc'
         dchecks_str += job_cmd + '\n'
-    #nasty hack for DISCOVERY, writes all commands to one pbs script
+    #nasty hack for DISCOVERY, writes all commands to one script
     job.set_name_command(job_name + '-DChk', dchecks_str)
     dcheck_jobs.append(job.submit(os.path.join(working, 'Dchk.sh')))
     job.set_depends(None)
@@ -253,7 +259,7 @@ if options.intervals > 1:
             interval_file.close()
 
 #make directories for each interval
-if not os.path.exists(os.path.join(options.workdir, 'all')):
+if len(intervals) > 0 and not os.path.exists(os.path.join(options.workdir, 'all')):
     os.mkdir(os.path.join(options.workdir, 'all'))
 for interval in intervals:
     if not os.path.exists(os.path.join(options.workdir, str(interval))):
@@ -261,15 +267,16 @@ for interval in intervals:
 
 #find standards
 standards = []
-potential = os.listdir(options.stddir)
-for item in potential:
-    if item.endswith('.dab'):
-        standards.append(item.split('.')[0])
+if options.stddir:
+    potential = os.listdir(options.stddir)
+    for item in potential:
+        if item.endswith('.dab'):
+            standards.append(item.split('.')[0])
 
 job = None
 if options.queue == 'discovery':
     from pbsjob import PBSJob
-    job = PBSJob(addr=options.email, command="echo test", walltime="47:59:00", queue="largeq")
+    job = PBSJob(addr=options.email, command="echo test", walltime="24:00:00", queue="largeq")
 elif options.queue == 'slurm':
     from slurmjob import SLURMJob
     job = SLURMJob(addr=options.email, command="echo test", walltime="24:00:00", queue="1day", workdir=options.workdir)
@@ -287,31 +294,31 @@ if options.predict:
         sys.stderr.write("--genes-file is required.\n")
         sys.exit()
 
+workdir = options.workdir
+if len(intervals) > 0:
+    workdir = options.workdir + '/all'
+
 #Run non-cv
 depend_jobs = None
 if options.learn:
-    depend_jobs = learn(job=job, job_name='all', counter=binaries['Counter'], global_answers=options.answers, data=options.data, working=os.path.join(options.workdir, 'all'), zeros=options.zeros, standards=standards, stddir=options.stddir)
+    depend_jobs = learn(job=job, job_name='all', counter=binaries['Counter'], global_answers=options.answers, data=options.data, working=workdir, zeros=options.zeros, standards=standards, stddir=options.stddir)
 if options.network:
-    depend_jobs = networks(job=job, job_name='all', counter=binaries['Counter'], data=options.data, working=os.path.join(options.workdir, 'all'), alphas=options.alphas, pseudo=options.pseudo, stddir=options.stddir, depends=depend_jobs)
+    depend_jobs = networks(job=job, job_name='all', counter=binaries['Counter'], data=options.data, working=workdir, alphas=options.alphas, pseudo=options.pseudo, stddir=options.stddir, depends=depend_jobs)
 if options.predict:
-    depend_jobs = predict(job=job, job_name='all', counter=binaries['Counter'], data=options.data, working=os.path.join(options.workdir, 'all'), genome=options.genome, zeros=options.zeros, standards=standards, depends=depend_jobs)
+    depend_jobs = predict(job=job, job_name='all', counter=binaries['Counter'], data=options.data, working=workdir, genome=options.genome, zeros=options.zeros, standards=standards, depends=depend_jobs)
 if options.dcheck:
-    depend_jobs = dcheck(job=job, job_name='all', dchecker=binaries['DChecker'], answers=options.answers, working=os.path.join(options.workdir, 'all'), standards=standards, stddir=options.stddir, depends=depend_jobs)
-
+    depend_jobs = dcheck(job=job, job_name='all', dchecker=binaries['DChecker'], answers=options.answers, working=workdir, standards=standards, stddir=options.stddir, depends=depend_jobs)
 
 for interval in intervals:
     job_name = 'cv' + str(interval)
     holdout = os.path.join(int_dir, str(interval) + '.txt')
     depend_jobs = None
     if options.learn:
-        depend_jobs = learn(job, job_name, holdout, binaries['Counter'], options.answers, options.data, os.path.join(options.workdir, str(interval)), options.zeros, options.extra, contexts, options.contdir, options.threads)
+        depend_jobs = learn(job=job, job_name=job_name, holdout=holdout, counter=binaries['Counter'], global_answers=options.answers, data=options.data, working=os.path.join(options.workdir, str(interval)), zeros=options.zeros, standards=standards, stddir=options.stddir)
     if options.network:
-        depend_jobs = networks(job, job_name, binaries['Counter'], options.data, os.path.join(options.workdir, str(interval)), options.alphas, options.pseudo, options.contdir, depends=depend_jobs)
-
+        depend_jobs = networks(job=job, job_name=job_name, counter=binaries['Counter'], data=options.data, working=os.path.join(options.workdir, str(interval)), alphas=options.alphas, pseudo=options.pseudo, stddir=options.stddir, depends=depend_jobs)
     if options.predict:
-        depend_jobs = predict(job, job_name, binaries['Counter'], options.data, os.path.join(options.workdir, str(interval)), options.genome, options.zeros, contexts, options.contdir, options.threads, depends=depend_jobs)
-
+        depend_jobs = predict(job=job, job_name=job_name, counter=binaries['Counter'], data=options.data, working=os.path.join(options.workdir, str(interval)), genome=options.genome, zeros=options.zeros, standards=standards, depends=depend_jobs)
     if options.dcheck:
-        depend_jobs = dcheck(job, job_name, holdout, binaries['DChecker'], options.answers, os.path.join(options.workdir, str(interval)), contexts, options.contdir, options.extra, depends=depend_jobs)
-
+        depend_jobs = dcheck(job=job, job_name=job_name, holdout=holdout, dchecker=binaries['DChecker'], answers=options.answers, working=os.path.join(options.workdir, str(interval)), standards=standards, stddir=options.stddir, depends=depend_jobs)
 
