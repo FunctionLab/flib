@@ -44,8 +44,11 @@ class dat(object):
             if chrs == b'\x00\x00':
                 dab_file.seek(start)
 
-                gene = str(dab_file.read(end - start))
-                gene = gene.strip()
+                #gene = str(dab_file.read(end - start))
+                #gene = gene.strip()
+                byte_genes = dab_file.read(end - start)
+                byte_str = byte_genes.decode()
+                gene = byte_str.replace('\x00', '')
 
                 self.gene_list.append(gene)
                 self.gene_table[gene] = count
